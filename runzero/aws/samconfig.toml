@@ -1,0 +1,10 @@
+version = 0.1
+[staging]
+[staging.deploy]
+[staging.deploy.parameters]
+stack_name = "app-builder-runzero"
+s3_prefix = "app-builder-runzero"
+region = "ap-southeast-2"
+profile = "staging"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"

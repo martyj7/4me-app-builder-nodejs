@@ -1,0 +1,6 @@
+{
+  "name": "runZero integration Authorize / Refresh service",
+  "label": "lambda-runzero-1",
+  "remarks": "Receives redirect with one-time access code from runZero after authorization and syncs runZero assets to 4me",
+  "status": "being_tested"
+}

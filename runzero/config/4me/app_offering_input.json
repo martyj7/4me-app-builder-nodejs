@@ -1,0 +1,16 @@
+{
+  "name": "runZero",
+  "reference": "runzero",
+  "description": "This app synchronizes assets from a runZero instance with 4me.",
+  "features": "Install this app to import and maintain assets from runZero to the 4me Configuration Management Database (CMDB).",
+  "compliance": "By installing this app, you grant 4me access to your runZero sites and to copy asset information to 4me. By using the 4me runZero app, you agree to the [4me API Terms of Service](https://www.4me.com/api-terms-of-service). No data gathered by this app is sent from 4me to runZero or any other third parties.",
+  "newScopes": [
+    {
+      "actions": [
+        "ci:Create",
+        "ci:Read",
+        "ci:Update"
+      ]
+    }
+  ]
+}
