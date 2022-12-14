@@ -5,14 +5,14 @@ const LoggedError = require('../../../library/helpers/errors/logged_error');
 const runzeroAuthorizationError = require('./errors/runzero_authorization_error');
 
 class runZeroApiHelper {
-  constructor(clientSecret) {
-    this.apiUrl = 'https://console.rumble.run/api/v1.0';
+  constructor(clientSecret,url) {
+    this.apiUrl = url + '/api/v1.0';
     this.clientSecret = clientSecret;
 
-    this.resultFormat = '.jsonl'
-    this.siteURL = '/export/org/sites' + this.resultFormat
-    this.assetURL = '/export/org/assets' + this.resultFormat
-    this.softwareURL = '/export/org/software' + this.resultFormat
+    this.resultFormat = '.json'
+    this.siteURL = '/export/org/sites' + this.resultFormat + '?fields=name,id,asset_count';
+    this.assetURL = '/export/org/assets' + this.resultFormat;
+    this.softwareURL = '/export/org/software' + this.resultFormat;
   }
 
   createClient(url, bearerToken) {
@@ -31,7 +31,7 @@ class runZeroApiHelper {
     return axios.create(axiosConfig);
   }
 
-  async getRESTQuery(descr, query) {
+  async getRESTQuery(descr, query, filter) {
     try {
       let typeURL;
       switch (query) {
@@ -43,13 +43,7 @@ class runZeroApiHelper {
           typeURL = this.softwareURL
       }
       const client = this.createClient(this.apiUrl, this.clientSecret);
-      const lecResponse = await client.get(
-        `${query}`,
-        {
-          query: query,
-          fields: vars,
-        }
-      );
+      const lecResponse = await client.get(`${typeURL}`);
       const responseBody = lecResponse.data;
       const errors = responseBody.errors;
       if (errors) {

@@ -2,7 +2,8 @@
   width: 250px;
 }
 
-#config #client_id, #config #client_secret {
+#config #client_id,
+#config #runzero_url {
   width: 500px;
 }
 

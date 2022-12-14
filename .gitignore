@@ -5,3 +5,4 @@ node_modules
 .DS_Store
 default_input.json
 *.credentials.json
+.env

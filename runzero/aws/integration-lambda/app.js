@@ -44,51 +44,6 @@ async function getLambdaUrl(provider4meHelper, accessToken, lambdaArn) {
   return lambdaUrl;
 }
 
-async function updaterunzeroCallbackURL(callbackSecret, options) {
-  const provider4meHelper = options.lambda4meContext.providerContext.js4meHelper;
-  const accessToken = await provider4meHelper.getToken();
-
-  const customerContext = options.lambda4meContext.customerContext;
-  const customerAccount = customerContext.account;
-  const offeringReference = options.lambda4meContext.offeringReference;
-
-  const instanceHelper = new InstanceHelper();
-  let config = await instanceHelper.retrieveInstanceWithRetry(provider4meHelper,
-                                                              accessToken,
-                                                              offeringReference,
-                                                              customerAccount);
-
-  if (config.error) {
-    console.log('Unable to query instance. Too quick after app offering installation?');
-    return config;
-  }
-
-  let instanceInput = null;
-  if (config.connectionStatus !== 'pending_callback_url') {
-    instanceInput = await getInvalidCurrentAuthorizationInput(customerContext, config.clientID);
-    if (!instanceInput.suspended) {
-      return config;
-    }
-  }
-
-  if (!instanceInput || !instanceInput.suspensionComment) {
-    const lambdaArn = options.lambdaAwsContext.invokedFunctionArn;
-    instanceInput = await getPendingAuthorizationInput(lambdaArn, provider4meHelper, accessToken, customerAccount, callbackSecret);
-  }
-  if (instanceInput.error) {
-    return instanceInput;
-  }
-
-  // update customer app instance in 4me
-  const updateCustomFields = await instanceHelper.updateAppInstance(provider4meHelper, accessToken, {id: config.instanceId, ...instanceInput});
-  if (updateCustomFields.error) {
-    console.error('Unable to set app instance custom fields %s:\n%j', instanceInput, updateCustomFields.error);
-    return {error: 'Unable to set app instance custom fields'};
-  }
-
-  return updateCustomFields;
-}
-
 async function getInvalidCurrentAuthorizationInput(customerContext, clientID) {
   try {
     const clientSecret = customerContext.secrets.secrets.client_secret;
@@ -148,7 +103,7 @@ async function generateCustomerSecret(options) {
   return await secretsHelper.updateSecrets(secretsAccountKey, {callback_secret: callbackSecret});
 }
 
-async function handleInstallationChanged(handler, data, options) {
+/* async function handleInstallationChanged(handler, data, options) {
   let callbackSecret;
   const secrets = options.lambda4meContext.customerContext.secrets;
   if (secrets.callback_secret) {
@@ -169,4 +124,4 @@ async function handleInstallationChanged(handler, data, options) {
   }
 
   return handler.respondWith('OK');
-}
+} */

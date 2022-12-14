@@ -6,7 +6,7 @@ const ReferenceHelper = require('./references_helper');
 const TimeHelper = require('../../../library/helpers/time_helper');
 const LoggedError = require('../../../library/helpers/errors/logged_error');
 const Js4meAuthorizationError = require('../../../library/helpers/errors/js_4me_authorization_error');
-const runzeroGraphQLError = require('./errors/runzero_graphql_error');
+const runzeroAPIError = require('./errors/runzero_api_error');
 const ResultHelper = require('../../../library/helpers/result_helper');
 
 class runzeroIntegration {
@@ -25,12 +25,12 @@ class runzeroIntegration {
     return true;
   }
 
-  async processSites(networkedAssetsOnly, configAssetTypes, generateLabels, installationFilter, extraInstallations) {
+  async processSites(networkedAssetsOnly, configAssetTypes, generateLabels, siteFilter, siteNames, sitesAssetsOnly) {
     let siteIds;
     try {
-      siteIds = await this.runzeroClient.getSiteIds();
+      siteIds = await this.runzeroClient.getSites(siteNames, sitesAssetsOnly);
     } catch (error) {
-      if (error instanceof runzeroGraphQLError) {
+      if (error instanceof runzeroAPIError) {
         return {error: error.message};
       }
       throw error;
@@ -62,7 +62,7 @@ class runzeroIntegration {
         if (installations.error) {
           siteError = installations.error;
         } else {
-          const selectedInstallations = installations.filter(i => installationFilter(i.name));
+          const selectedInstallations = installations.filter(i => siteFilter(i.name));
           if (selectedInstallations.length === 0) {
             result.info[siteName] = 'No installations in this site matched selection';
           } else {

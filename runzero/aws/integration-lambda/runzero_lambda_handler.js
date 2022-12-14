@@ -48,7 +48,7 @@ class runzeroLambdaHandler {
     return this.respondWith(`Triggered refresh of ${successCount} accounts`);
   }
 
-  async handleSQSEvent(event, context) {
+ /*  async handleSQSEvent(event, context) {
     let handledCount = 0;
     for (const record of event.Records) {
       const result = await this.handleSQSRecord(record);
@@ -64,9 +64,9 @@ class runzeroLambdaHandler {
                               recordCount: event.Records.length,
                               successCount: handledCount,
                             });
-  }
+  } */
 
-  async handleSQSRecord(record) {
+  /* async handleSQSRecord(record) {
     let result = null;
 
     const customerAccount = record.body;
@@ -85,9 +85,9 @@ class runzeroLambdaHandler {
     }
 
     return result;
-  }
+  } */
 
-  async handleHTTPEvent(event, context) {
+/*   async handleHTTPEvent(event, context) {
     const proxyParams = event.pathParameters.proxy.split('/');
     const customerAccount = proxyParams[0];
 
@@ -118,7 +118,7 @@ class runzeroLambdaHandler {
 
       return await this.handlerunzeroAuthentication(event, lambda4meContext, code);
     }
-  }
+  } */
 
   async assembleContext(customerAccount) {
     if (!customerAccount || customerAccount === '') {
@@ -162,8 +162,6 @@ class runzeroLambdaHandler {
     let networkedAssetsOnly = true;
     if (config.importType === 'all') {
       networkedAssetsOnly = undefined;
-    } else if (config.importType === 'no_ip_only') {
-      networkedAssetsOnly = false;
     } else if (config.importType === 'selected_types_only') {
       networkedAssetsOnly = undefined;
       assetTypes = config.selectedAssetTypes;
@@ -175,17 +173,20 @@ class runzeroLambdaHandler {
 
     const generateLabels = config.labelGenerator === 'runzero_asset_name';
 
-    let installationFilter;
-    if (config.installationHandling === 'all') {
-      installationFilter = (_) => true;
+    let siteFilter;
+    let sitesAssetsOnly = false;
+    if (config.siteHandling === 'all') {
+      siteFilter = (_) => true;
+    } else if (config.siteHandling === 'sites_with_assets') {
+      sitesAssetsOnly = true;
     } else {
-      installationFilter = (i) => config.installationNames.indexOf(i) >= 0;
+      siteFilter = (i) => config.siteNames.indexOf(i) >= 0;
     }
 
     let resultsPerSite;
     try {
       const integration = new runzeroIntegration(clientID, clientSecret, refreshToken, customerContext.js4meHelper);
-      resultsPerSite = await integration.processSites(networkedAssetsOnly, assetTypes, generateLabels, installationFilter, config.installationNames);
+      resultsPerSite = await integration.processSites(networkedAssetsOnly, assetTypes, generateLabels, siteFilter, config.siteNames, sitesAssetsOnly);
     } catch (error) {
       if (error instanceof runzeroAuthorizationError) {
         return await this.suspendUnauthorizedInstance(lambda4meContext, config, error);
@@ -274,8 +275,8 @@ class runzeroLambdaHandler {
       id: config.instanceId,
       suspended: false,
       customFields: [
-        {id: 'connection_status', value: 'success'},
-        {id: 'callback_url', value: null},
+        {id: 'connection_status', value: 'success'}
+       // {id: 'callback_url', value: null},
       ]
     };
     const updateCustomFields = await this.updateInstanceConfig(lambda4meContext, instanceInput);

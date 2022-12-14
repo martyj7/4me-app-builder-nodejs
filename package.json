@@ -13,6 +13,7 @@
         "deploy-note-dispatcher": "node note-dispatcher/deploy_integration.js",
         "deploy-lansweeper": "node lansweeper/deploy_integration.js",
         "deploy-slack": "node slack/deployment.js",
+        "deploy-runzero": "node runzero/deploy_integration.js",
         "test": "jest --silent"
     },
     "author": "4me, Inc",
@@ -24,6 +25,7 @@
         "@aws-sdk/client-sts": "3.43.0",
         "@aws-sdk/credential-providers": "3.43.0",
         "@aws-sdk/util-credentials": "3.37.0",
+        "aws-sdk": "^2.1273.0",
         "axios": "0.24.0",
         "form-data": "^4.0.0",
         "jose": "3.11.4",

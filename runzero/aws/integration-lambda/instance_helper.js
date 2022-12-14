@@ -11,14 +11,14 @@ class InstanceHelper extends InstanceHelperBase {
   }
 
   customFieldsProcessor(result, customFields) {
-    const clientIdField = customFields.find(i => i.id === 'client_id');
-    if (clientIdField) {
-      result.clientID = clientIdField.value;
+    const rzURLField = customFields.find(i => i.id === 'runzero_url');
+    if (rzURLField) {
+      result.clientID = rzURLField.value;
     }
-    const callbackUrlField = customFields.find(i => i.id === 'callback_url');
+    /* const callbackUrlField = customFields.find(i => i.id === 'callback_url');
     if (callbackUrlField) {
       result.callbackURL = callbackUrlField.value;
-    }
+    } */
     const connectionStatusField = customFields.find(i => i.id === 'connection_status');
     if (connectionStatusField) {
       result.connectionStatus = connectionStatusField.value;
@@ -35,16 +35,16 @@ class InstanceHelper extends InstanceHelperBase {
     if (assetTypesField) {
       result.selectedAssetTypes = this.splitMultiValueField(assetTypesField.value);
     }
-    const installationHandlingField = customFields.find(i => i.id === 'installation_handling');
-    if (installationHandlingField) {
-      result.installationHandling = installationHandlingField.value;
+    const siteHandlingField = customFields.find(i => i.id === 'site_handling');
+    if (siteHandlingField) {
+      result.siteHandling = siteHandlingField.value;
     }
-    result.installationHandling = result.installationHandling || 'all';
-    const installationsField = customFields.find(i => i.id === 'installations');
-    if (installationsField) {
-      result.installationNames = this.splitMultiValueField(installationsField.value);
+    result.siteHandling = result.installationHandling || 'all' || 'sites_with_assets';
+    const siteField = customFields.find(i => i.id === 'sites');
+    if (siteField) {
+      result.siteNames = this.splitMultiValueField(siteField.value);
     }
-    result.installationNames = result.installationNames || [];
+    result.siteNames = result.siteNames || [];
     const labelGeneratorField = customFields.find(i => i.id === 'label_generator');
     if (labelGeneratorField) {
       result.labelGenerator = labelGeneratorField.value;

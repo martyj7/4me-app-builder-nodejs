@@ -4,7 +4,7 @@ const runZeroApiHelper = require('./runzero_api_helper');
 const runzeroHelper = require('./runzero_helper');
 const LoggedError = require('../../../library/helpers/errors/logged_error');
 const runzeroAuthorizationError = require('./errors/runzero_authorization_error');
-const runzeroGraphQLError = require('./errors/runzero_graphql_error');
+const runzeroAPIError = require('./errors/runzero_api_error');
 
 class runzeroClient {
   constructor(clientId, clientSecret, refreshToken) {
@@ -12,31 +12,38 @@ class runzeroClient {
     this.helper = new runzeroHelper();
   }
 
-  async getSiteIds() {
-    return (await this.getSites()).map(s => s.id);
+  async getSiteIds(sitesAssetsOnly) {
+    return (await this.getSites(sitesAssetsOnly)).map(s => s.id);
   }
 
   async getSiteName(id) {
     return (await this.getSites()).find(s => s.id === id).name;
   }
 
-  async getSites() {
+  async getSites(siteNames, sitesAssetsOnly) {
     if (!this.sites) {
-      const result = await this.apiHelper.getRESTQuery('accessible runzero sites', '{ authorizedSites { sites { id name } } }');
+      this.sites = [];
+      const result = await this.apiHelper.getRESTQuery('runzero sites', 'site');
       if (result.error) {
         console.info(`Unable to query sites: ${result.error}`);
-        throw new runzeroGraphQLError(result.error);
+        throw new runzeroAPIError(result.error);
       } else {
-        if (!result.authorizedSites) {
-          console.error('No authorizedSites in runzero response, got:\n%j', result);
-          throw new LoggedError('Not authorized');
-        }
-        const sites = result.authorizedSites.sites;
-        if (!sites || sites.length === 0) {
+        if (!result || result.length === 0) {
           console.error('No sites in runzero response, got:\n%j', result);
-          throw new runzeroAuthorizationError('Not authorized for any sites');
+          throw new runzeroAuthorizationError('No sites returned in response');
         }
-        this.sites = sites;
+       result.forEach(function (checksite) {
+          if (sitesAssetsOnly){
+            if (checksite.asset_count > 0) {
+              this.sites.push(checksite);
+            }
+          } else if (siteNames) {
+            
+          }
+          else {
+            this.sites.push(checksite);
+         }
+        });
       }
     }
     return this.sites;

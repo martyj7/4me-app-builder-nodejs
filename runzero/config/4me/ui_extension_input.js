@@ -127,11 +127,11 @@ const multiText = function () {
 };
 
 ITRP.hooks.register('after-prefill', function () {
-  multiText().init('installations', { singularName: 'installation', required: true, max: 20 });
-  const $installationHandling = $extension.find('#installation_handling');
-  const $installations = $extension.find('.tracks.installations').closest('.row');
-  $installationHandling.on('change', function() {
-    $installations.toggleClass('hide', $installationHandling.val() === 'all');
+  multiText().init('site_list', { singularName: 'site', required: true, max: 50 });
+  const $sitehandling = $extension.find('#site_handling');
+  const $sites = $extension.find('.tracks.site_list').closest('.row');
+  $sitehandling.on('change', function() {
+    $sites.toggleClass('hide', ($sitehandling.val() === 'all' || $sitehandling.val() === 'sites_with_assets'));
   }).trigger('change');
 
   multiText().init('asset_types', { singularName: 'asset type', required: true, max: 99 });
@@ -147,17 +147,17 @@ ITRP.hooks.register('after-prefill', function () {
 
   if (connection_status === 'pending_client_credentials') {
     $extension.find('.step-client-credentials').removeClass('hide');
-    const $client_id = $extension.find('#client_id');
-    const $client_secret = $extension.find('#client_secret');
+    const $client_id = $extension.find('#client_secret');
+    const $url = $extension.find('#runzero_url');
     const nextStep = function() {
       var step = 'pending_client_credentials';
-      if (!String.isBlank($client_id.val()) && !String.isBlank($client_secret.val())) {
-        step = 'pending_callback_url';
+      if (!String.isBlank($client_id.val()) && !String.isBlank($url.val())) {
+        step = 'pending_authorization';
       }
       $connection_status.val(step);
     };
     $client_id.on('change', nextStep);
-    $client_secret.on('change', nextStep);
+    $url.on('change', nextStep);
   }
 
   if (connection_status === 'pending_authorization') {

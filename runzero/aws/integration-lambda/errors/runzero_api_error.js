@@ -2,10 +2,10 @@
 
 const LoggedError = require('../../../../library/helpers/errors/logged_error');
 
-class runzeroGraphQLError extends LoggedError {
+class runzeroAPIError extends LoggedError {
   constructor(message) {
     super(message);
   }
 }
 
-module.exports = runzeroGraphQLError;
+module.exports = runzeroAPIError;
