@@ -51,9 +51,9 @@ class DeployIntegration {
     return await this.js4meDeployHelper.findDefaultLambdaProduct(this.js4meHelper, this.accessToken);
   }
 
-  /* async findSqsProduct() {
+   async findSqsProduct() {
     return await this.js4meDeployHelper.findDefaultSqsProduct(this.js4meHelper, this.accessToken);
-  } */
+  }
 
   async syncConfigurationItem(filename, extraProps) {
     const {input, filter} = this.readUpsertData(filename, extraProps);
@@ -78,8 +78,8 @@ class DeployIntegration {
                                                                                  domain,
                                                                                  account,
                                                                                  offeringReference);
-    //result.refreshQueueArn = result.stacksOutput['RefreshQueueArn'];
-    //result.deadLetterQueueArn = result.stacksOutput['DeadLetterQueueArn'];
+    result.refreshQueueArn = result.stacksOutput['RefreshQueueArn'];
+    result.deadLetterQueueArn = result.stacksOutput['DeadLetterQueueArn'];
     return result;
   }
 
@@ -125,8 +125,8 @@ class DeployIntegration {
                   region,
                   lambdaArn,
                   lambdaUrl,
-                //  refreshQueueArn,
-                //  deadLetterQueueArn,
+                  refreshQueueArn,
+                  deadLetterQueueArn,
                   account,
                   domain) {
     const lambdaProduct = await this.findLambdaProduct();
@@ -156,7 +156,7 @@ class DeployIntegration {
                                                     ],
                                                   });
 
-    /* const sqsProduct = await this.findSqsProduct();
+    const sqsProduct = await this.findSqsProduct();
     await this.syncConfigurationItem('runzero_dead_letter_sqs_ci',
                                      {
                                        productId: sqsProduct.id,
@@ -184,7 +184,7 @@ class DeployIntegration {
                                                         value: stackName,
                                                       },
                                                     ],
-                                                  }); */
+                                                  });
 
     const avatar = this.readAvatar();
     const offering = await this.createOffering(serviceInstance, avatar);
@@ -214,7 +214,7 @@ module.exports = DeployIntegration;
   const clientConfig = await new AwsConfigHelper(profile).getClientConfig();
   await deployIntegration.logInto4meUsingAwsClientConfig(clientConfig, domain, account);
 
-  const {lambdaUrl, lambdaArn, s3Bucket} = await deployIntegration.deployLambda(clientConfig,
+  const {lambdaUrl, lambdaArn, s3Bucket, refreshQueueArn, deadLetterQueueArn} = await deployIntegration.deployLambda(clientConfig,
                                                                                                  profile,
                                                                                                  domain,
                                                                                                  account);
@@ -223,8 +223,8 @@ module.exports = DeployIntegration;
                                     clientConfig.region,
                                     lambdaArn,
                                     lambdaUrl,
-                                   // refreshQueueArn,
-                                   // deadLetterQueueArn,
+                                    refreshQueueArn,
+                                    deadLetterQueueArn,
                                     account,
                                     domain);
 })();

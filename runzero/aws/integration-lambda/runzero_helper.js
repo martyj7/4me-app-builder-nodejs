@@ -76,19 +76,23 @@ class runzeroHelper {
   }
 
   getBrand(asset) {
-    return this.getByReferenceOrAdd(this.brands, asset.assetCustom.manufacturer || 'Unknown');
+    return this.getByReferenceOrAdd(this.brands, asset.hw_vendor || 'Unknown');
   }
 
   getModel(asset) {
-    return this.getByReferenceOrAdd(this.models, asset.assetCustom.model || 'Unknown');
+    return this.getByReferenceOrAdd(this.models, asset.hw_product || 'Unknown');
   }
 
   getProduct(asset) {
     const category = this.getProductCategory(asset);
-    const brand = this.getBrand(asset);
-    const model = this.getModel(asset);
-    const sku = asset.assetCustom.sku;
-    const name = `${brand} ${model} ${sku ? `${sku} ` : ''}${category.name}`;
+    let brand = this.getBrand(asset);
+    let model = this.getModel(asset);
+    if ((brand === 'Unkown' && model === 'Unknown') && asset.hw) {
+      let assethw = asset.hw.split(" ");     
+      brand = this.getBrand(assethw.shift());
+      model = this.getModel(assethw.join(" "));
+    }
+    const name = `${brand} ${model} ${category.name}`;
     const prod = this.getByReferenceOrAdd(this.products,
                                                       name,
                                                       (reference, name) => {
@@ -99,17 +103,12 @@ class runzeroHelper {
                                                           brand: brand,
                                                         };
                                                       });
-
-    if (!prod.sku && asset.assetCustom.sku) {
-      prod.sku = asset.assetCustom.sku;
-    }
-
     return prod;
   }
 
   getProductCategory(asset) {
     return this.getByReferenceOrAdd(this.categories,
-                                    asset.assetBasicInfo.type,
+                                    asset.type,
                                     (reference, assetType) => {
                                       return {
                                         name: assetType,

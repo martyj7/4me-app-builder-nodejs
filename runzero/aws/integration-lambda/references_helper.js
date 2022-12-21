@@ -21,8 +21,18 @@ class ReferencesHelper {
 
     return {
       softwareCis: await this.getSoftwareReferences(accessToken, assets),
-      users: await this.getUserReferences(accessToken, assets),
+      //users: await this.getUserReferences(accessToken, assets),
     };
+  }
+
+  async lookup4meSiteReferences(site) {
+    const accessToken = await this.customer4meHelper.getToken();
+    const siteLookup = await this.lookupSiteName(accessToken, site);
+    const siteReturn = siteLookup.sites.nodes
+    if (!siteReturn || siteReturn.length === 0) {
+      return false
+    }
+    return siteReturn;
   }
 
   async getSoftwareReferences(accessToken, assets) {
@@ -117,7 +127,7 @@ class ReferencesHelper {
 ${queries.join('\n')}
     }`;
 
-    const result = await this.customer4meHelper.getRESTQuery('People by username',
+    const result = await this.customer4meHelper.getGraphQLQuery('People by username',
                                                                 accessToken,
                                                                 query,
                                                                 {names: userNames});
@@ -137,6 +147,19 @@ ${queries.join('\n')}
     });
 
     return this.peopleFound;
+  }
+
+  async lookupSiteName(site) {
+    const query = `query {
+              sites(first: 1,filter: {name: {values: ${site}}})
+              {
+              nodes { id name remarks disabled }
+              }
+            }`;
+    const sitereturn = await this.customer4meHelper.getGraphQLQuery('Site Lookup',
+                                                              accessToken,
+                                                              query);
+    return sitereturn;
   }
 
   async lookupAllPeople(accessToken) {

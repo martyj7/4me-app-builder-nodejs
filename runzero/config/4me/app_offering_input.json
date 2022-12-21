@@ -9,7 +9,15 @@
       "actions": [
         "ci:Create",
         "ci:Read",
-        "ci:Update"
+        "ci:Update",
+        "person:Read",
+        "product-category:Create",
+        "product-category:Update",
+        "product:Create",
+        "product:Update",
+        "site:Create",
+        "site:Read",
+        "site:Update"
       ]
     }
   ]

@@ -3,6 +3,8 @@
 }
 
 #config #client_id,
+#config #client_secret,
+#config #org_name,
 #config #runzero_url {
   width: 500px;
 }

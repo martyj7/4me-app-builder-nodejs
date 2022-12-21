@@ -11,13 +11,18 @@ const runzeroAuthorizationError = require('./errors/runzero_authorization_error'
 const Js4meAuthorizationError = require('../../../library/helpers/errors/js_4me_authorization_error');
 
 class runzeroLambdaHandler {
-  constructor(options) {
+  constructor(options,refreshURL) {
     this.lambda4meContextHelper = new Lambda4meContextHelper(options);
     this.refreshQueueUrl = options.refreshQueueUrl;
+    if (refreshURL) {
+      this.refreshQueueUrl = refreshURL;
+    }
     this.timeHelper = new TimeHelper();
   }
 
   async handleScheduledEvent(event, context) {
+    console.log(event);
+    console.log(context);
     const lambda4meContext = await this.lambda4meContextHelper.assembleProviderOnly();
     if (!lambda4meContext.providerContext) {
       return this.unknownError('Configuration error, unable to query 4me');
@@ -48,7 +53,7 @@ class runzeroLambdaHandler {
     return this.respondWith(`Triggered refresh of ${successCount} accounts`);
   }
 
- /*  async handleSQSEvent(event, context) {
+  async handleSQSEvent(event, context) {
     let handledCount = 0;
     for (const record of event.Records) {
       const result = await this.handleSQSRecord(record);
@@ -64,9 +69,9 @@ class runzeroLambdaHandler {
                               recordCount: event.Records.length,
                               successCount: handledCount,
                             });
-  } */
+  } 
 
-  /* async handleSQSRecord(record) {
+   async handleSQSRecord(record) {
     let result = null;
 
     const customerAccount = record.body;
@@ -85,9 +90,9 @@ class runzeroLambdaHandler {
     }
 
     return result;
-  } */
+  }
 
-/*   async handleHTTPEvent(event, context) {
+   async handleHTTPEvent(event, context) {
     const proxyParams = event.pathParameters.proxy.split('/');
     const customerAccount = proxyParams[0];
 
@@ -116,9 +121,9 @@ class runzeroLambdaHandler {
         return this.badRequest('Unauthorized');
       }
 
-      return await this.handlerunzeroAuthentication(event, lambda4meContext, code);
+      return await this.handlerunzeroAuthentication(lambda4meContext);
     }
-  } */
+  }
 
   async assembleContext(customerAccount) {
     if (!customerAccount || customerAccount === '') {
@@ -154,39 +159,36 @@ class runzeroLambdaHandler {
       return this.unknownError('Connection error, please try again later.');
     }
 
-    const clientID = config.clientID;
-    const clientSecret = customerContext.secrets.secrets.client_secret;
+    let clientSecret = false;
+    if (config.CredOption == 'export_token') {
+      clientSecret = customerContext.secrets.secrets.export_secret;
+    } else {
+      clientSecret = customerContext.secrets.secrets.client_secret;
+    }
     const refreshToken = customerContext.secrets.refresh_token;
 
     let assetTypes = null;
-    let networkedAssetsOnly = true;
-    if (config.importType === 'all') {
-      networkedAssetsOnly = undefined;
-    } else if (config.importType === 'selected_types_only') {
-      networkedAssetsOnly = undefined;
+    if (config.importType === 'selected_types_only') {
       assetTypes = config.selectedAssetTypes;
       if (assetTypes) {
-        // runzero asset types are not case sensitive and returned from getAssetTypes in lowercase
         assetTypes = assetTypes.map(a => a.toLowerCase());
       }
     }
 
     const generateLabels = config.labelGenerator === 'runzero_asset_name';
-
-    let siteFilter;
+    
     let sitesAssetsOnly = false;
-    if (config.siteHandling === 'all') {
-      siteFilter = (_) => true;
+    let siteFilter = false;
+    if (config.siteHandling === 'selected_sites_only') {
+      siteFilter = true;
     } else if (config.siteHandling === 'sites_with_assets') {
       sitesAssetsOnly = true;
-    } else {
-      siteFilter = (i) => config.siteNames.indexOf(i) >= 0;
     }
 
     let resultsPerSite;
     try {
-      const integration = new runzeroIntegration(clientID, clientSecret, refreshToken, customerContext.js4meHelper);
-      resultsPerSite = await integration.processSites(networkedAssetsOnly, assetTypes, generateLabels, siteFilter, config.siteNames, sitesAssetsOnly);
+      const integration = new runzeroIntegration(config.clientID, clientSecret, config.rzURL, config.orgName, config.CredOption, customerContext.js4meHelper);
+      resultsPerSite = await integration.processSites(assetTypes, generateLabels, siteFilter, config.siteNames, sitesAssetsOnly);
     } catch (error) {
       if (error instanceof runzeroAuthorizationError) {
         return await this.suspendUnauthorizedInstance(lambda4meContext, config, error);
@@ -251,32 +253,39 @@ class runzeroLambdaHandler {
     return this.badRequest('Unable to connect to customer account, suspended instance.')
   }
 
-  async handlerunzeroAuthentication(event, lambda4meContext, code) {
-    const config = await this.appInstanceConfig(lambda4meContext);
-
-    const customerContext = lambda4meContext.customerContext;
-
+  async updateRefreshToken(customerContext, config) {
+    let clientSecret = false;
+    if (config.CredOption == 'export_token') {
+      clientSecret = customerContext.secrets.secrets.export_secret;
+    } else {
+      clientSecret = customerContext.secrets.secrets.client_secret;
+    }
     const clientID = config.clientID;
-    const clientSecret = customerContext.secrets.secrets.client_secret;
-    const callbackURL = `https://${event.headers.Host}${event.requestContext.path}`;
-    const refreshToken = await this.getRefreshToken(clientID, clientSecret, code, callbackURL);
+    const refreshToken = await this.getRefreshToken(clientID, clientSecret, config.rzURL, config.orgName, config.CredOption);
     if (!refreshToken) {
       return this.badRequest('Unauthorized');
     }
     const secretsHelper = customerContext.secretsHelper;
     const secretsAccountKey = customerContext.secretsAccountKey;
-    const awsResult = await secretsHelper.updateSecrets(secretsAccountKey, {refresh_token: refreshToken});
+    const awsResult = await secretsHelper.updateSecrets(secretsAccountKey, { refresh_token: refreshToken });
     if (!awsResult.secrets.refresh_token) {
       console.error('Unable to store runzero refresh_token');
       return this.unknownError('Connection error, please try again later.');
     }
+    return refreshToken
+  }
+
+  async handlerunzeroAuthentication(lambda4meContext) {
+    const config = await this.appInstanceConfig(lambda4meContext);
+
+    const customerContext = lambda4meContext.customerContext;
+    const refreshToken = await handler.updateRefreshToken(customerContext, config);
 
     const instanceInput = {
       id: config.instanceId,
       suspended: false,
       customFields: [
         {id: 'connection_status', value: 'success'}
-       // {id: 'callback_url', value: null},
       ]
     };
     const updateCustomFields = await this.updateInstanceConfig(lambda4meContext, instanceInput);
@@ -300,6 +309,7 @@ class runzeroLambdaHandler {
       if (!this.sqsHelper) {
         this.sqsHelper = new SQSHelper(null);
       }
+      console.log(`${this.refreshQueueUrl} - ${customerAccount}`)
       const data = await this.sqsHelper.sendMessage(this.refreshQueueUrl, customerAccount);
       console.log(`Refresh message sent. MessageId: ${data.MessageId}`);
       return data.MessageId;
@@ -309,10 +319,12 @@ class runzeroLambdaHandler {
     }
   }
 
-  async getRefreshToken(clientID, clientSecret, code, callbackURL) {
-    const runzeroApiHelper = new runZeroApiHelper(clientID, clientSecret, null);
-    return await runzeroApiHelper.getRefreshToken(code, callbackURL);
+  async getRefreshToken(clientId, clientSecret, url, orgname, CredOption) {
+    const runzeroApiHelper = new runZeroApiHelper(clientId, clientSecret, url, orgname, CredOption);
+    return await runzeroApiHelper.getAccessToken();
   }
+
+
 
   async appInstanceConfig(lambda4meContext) {
     const provider4meHelper = lambda4meContext.providerContext.js4meHelper;
@@ -325,7 +337,7 @@ class runzeroLambdaHandler {
                                                          providerToken,
                                                          offeringReference,
                                                          customerAccount);
-    if (config.error || !config.clientID) {
+    if (config.error || !config.CredOption) {
       this.error('Configuration invalid. Got config: %j', config);
       return {error: 'Unable to process event. Configuration error.'};
     } else {

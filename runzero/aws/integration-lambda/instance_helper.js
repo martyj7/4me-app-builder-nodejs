@@ -13,12 +13,16 @@ class InstanceHelper extends InstanceHelperBase {
   customFieldsProcessor(result, customFields) {
     const rzURLField = customFields.find(i => i.id === 'runzero_url');
     if (rzURLField) {
-      result.clientID = rzURLField.value;
+      result.rzURL = rzURLField.value;
     }
-    /* const callbackUrlField = customFields.find(i => i.id === 'callback_url');
-    if (callbackUrlField) {
-      result.callbackURL = callbackUrlField.value;
-    } */
+    const clientIdField = customFields.find(i => i.id === 'client_id');
+    if (clientIdField) {
+      result.clientID = clientIdField.value;
+    }
+    const orgNameField = customFields.find(i => i.id === 'org_name');
+    if (orgNameField) {
+      result.orgName = orgNameField.value;
+    }
     const connectionStatusField = customFields.find(i => i.id === 'connection_status');
     if (connectionStatusField) {
       result.connectionStatus = connectionStatusField.value;
@@ -39,20 +43,22 @@ class InstanceHelper extends InstanceHelperBase {
     if (siteHandlingField) {
       result.siteHandling = siteHandlingField.value;
     }
-    result.siteHandling = result.installationHandling || 'all' || 'sites_with_assets';
-    const siteField = customFields.find(i => i.id === 'sites');
-    if (siteField) {
-      result.siteNames = this.splitMultiValueField(siteField.value);
+    const siteNamesField = customFields.find(i => i.id === 'site_list');
+    if (siteNamesField) {
+      result.siteNames = this.splitMultiValueField(siteNamesField.value);
     }
-    result.siteNames = result.siteNames || [];
     const labelGeneratorField = customFields.find(i => i.id === 'label_generator');
     if (labelGeneratorField) {
       result.labelGenerator = labelGeneratorField.value;
     }
+    const CredOptionField = customFields.find(i => i.id === 'select_option');
+    if (CredOptionField) {
+      result.CredOption = CredOptionField.value;
+    }
   }
 
   async retrieveAccountsLastSyncedBefore(provider4meHelper, reference, endDate) {
-    const filterValue = `<${this.timeHelper.formatDateTime(endDate)}`
+    const filterValue = `<${this.timeHelper.formatDateTime(endDate)}`;
     const query = `
       query($reference: String, $value: String!) {
         appInstances(first: 100,
@@ -64,7 +70,7 @@ class InstanceHelper extends InstanceHelperBase {
       }`;
 
     const accessToken = await provider4meHelper.getToken();
-    const result = await provider4meHelper.getRESTQuery('find instances to sync',
+    const result = await provider4meHelper.getGraphQLQuery('find instances to sync',
                                                            accessToken,
                                                            query,
                                                            {reference: reference, value: filterValue});

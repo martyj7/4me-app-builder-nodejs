@@ -6,3 +6,4 @@ node_modules
 default_input.json
 *.credentials.json
 .env
+runzero/config/4me/api_tests/old_functions_moded.txt

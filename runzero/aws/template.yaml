@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   4me-runzero-lambda
 
-  Sample SAM Template for 4me-runzero-lambda
+  SAM Template for 4me-runzero-lambda
 
 Parameters:
   4MeDomainParameter:

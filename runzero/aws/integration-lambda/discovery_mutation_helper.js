@@ -30,16 +30,7 @@ class DiscoveryMutationHelper {
   }
 
   addCi(asset) {
-    const key = asset.key;
-    if (!asset.assetCustom) {
-      console.info(`Skipping ${key}. No assetCustom data available`);
-      return;
-    }
-    if (asset.assetBasicInfo.type === 'Location') {
-      console.info(`Skipping Location ${key}.`);
-      return;
-    }
-
+    const key = asset.id;
     try {
       const mappedProduct = this.mapProduct(asset);
       const ci = this.createCi(asset, mappedProduct);
@@ -52,13 +43,12 @@ class DiscoveryMutationHelper {
 
   createCi(asset, product) {
     const ci = {
-      sourceID: asset.key,
-      serialNr: asset.assetCustom.serialNumber,
-      systemID: asset.url,
-      status: this.mapState(asset.assetCustom.stateName),
+      sourceID: asset.site_name,
+      systemID: asset.id,
+      status: 'in_production'
     };
 
-    const runzeroName = asset.assetBasicInfo.name;
+    const runzeroName = asset.names[0];
     if (this.generateLabels) {
       ci.name = product.name;
       ci.label = runzeroName;
@@ -66,20 +56,7 @@ class DiscoveryMutationHelper {
       ci.name = runzeroName;
     }
 
-    let purchaseDate = null;
-    if (asset.assetCustom.purchaseDate) {
-      purchaseDate = new Date(asset.assetCustom.purchaseDate);
-      if (purchaseDate.getTime() > 0) {
-        ci.inUseSince = this.timeHelper.formatDate(purchaseDate);
-      }
-    }
-    if (asset.assetCustom.warrantyDate) {
-      const warrantyDate = new Date(asset.assetCustom.warrantyDate);
-      if (warrantyDate.getTime() > 0 && (!purchaseDate || purchaseDate <= warrantyDate)) {
-        ci.warrantyExpiryDate = this.timeHelper.formatDate(warrantyDate);
-      }
-    }
-    if (asset.allUsers) {
+    /* if (asset.allUsers) {
       const nodeIDs = asset.allUsers.map(u => this.mapUser(u)).filter(n => !!n);
       if (nodeIDs.length > 0) {
         ci.userIds = nodeIDs;
@@ -95,47 +72,18 @@ class DiscoveryMutationHelper {
       if (softwareIDs.length > 0) {
         ci.ciRelations = {childIds: softwareIDs};
       }
-    }
-    if (asset.operatingSystem && asset.operatingSystem.caption) {
-      const softwareIDs = this.mapSoftwareName([asset.operatingSystem.caption]);
-      if (softwareIDs.length > 0) {
+    }*/
+    if (asset.os) {
+      const softwareIDs = asset.os;
         if (ci.ciRelations) {
           ci.ciRelations.childIds = ci.ciRelations.childIds.concat(softwareIDs)
         } else {
           ci.ciRelations = {childIds: softwareIDs}
         }
-      }
-
     }
     return ci;
   }
-
-  mapState(stateName) {
-
-    switch (stateName) {
-      case 'Active':
-        return 'in_production';
-      case 'Non-active':
-        return 'installed';
-      case 'Sold':
-        return 'removed';
-      case 'Stolen':
-        return 'lost_or_stolen';
-      case 'Broken':
-        return 'broken_down';
-      case "Don't show":
-        return 'to_be_removed';
-      case 'Spare':
-        return 'standby_for_continuity';
-      case 'In repair':
-        return 'being_repaired';
-      case 'Stock':
-        return 'in_stock';
-      default:
-        return 'installed';
-    }
-  }
-
+  
   mapUser(userName) {
     const name = userName && userName.toLowerCase();
     return this.referenceData.users.get(name);
