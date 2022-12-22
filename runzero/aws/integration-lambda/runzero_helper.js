@@ -76,37 +76,66 @@ class runzeroHelper {
   }
 
   getBrand(asset) {
-    return this.getByReferenceOrAdd(this.brands, asset.hw_vendor || 'Unknown');
+    return this.getByReferenceOrAdd(this.brands, asset || 'Unknown');
   }
 
   getModel(asset) {
-    return this.getByReferenceOrAdd(this.models, asset.hw_product || 'Unknown');
+    return this.getByReferenceOrAdd(this.models, asset || 'Unknown');
   }
 
   getProduct(asset) {
-    const category = this.getProductCategory(asset);
-    let brand = this.getBrand(asset);
-    let model = this.getModel(asset);
-    if ((brand === 'Unkown' && model === 'Unknown') && asset.hw) {
-      let assethw = asset.hw.split(" ");     
-      brand = this.getBrand(assethw.shift());
-      model = this.getModel(assethw.join(" "));
+    const prod = false;
+    if (asset.id) {
+      const category = this.getProductCategory(asset);
+      let brand = this.getBrand(asset.hw_vendor);
+      let model = this.getModel(asset.hw_product);
+      //console.log(asset.hw); // to remove
+      if ((brand === 'Unknown' && model === 'Unknown') && asset.hw) {
+        let assethw = asset.hw.split(" ");
+        brand = this.getBrand(assethw.shift());
+        if (assethw.join(" ")) {
+          model = this.getModel(assethw.join(" "));
+        } else {
+          model = 'Unknown';
+        }
+        model = this.getModel(assethw.join(" "));
+       //console.log(`${brand} ${model}`); // to remove
+      }
+      const name = `${brand} ${model} ${category.name}`;
+      prod = this.getByReferenceOrAdd(this.products,
+        name,
+        (reference, name) => {
+          return {
+            name: name,
+            reference: reference,
+            model: model,
+            brand: brand,
+          };
+        });
+    } else {
+      const category = 'Software - ' + this.getProductCategory(asset);
+      let brand = this.getBrand(asset.software_vendor);
+      let model = this.getModel(asset.software_product);
+      const name = `${brand} ${model} ${category.name}`;
+      console.log(name); // to remove
+      prod = this.getByReferenceOrAdd(this.products,
+        name,
+        (reference, name) => {
+          return {
+            name: name,
+            reference: reference,
+            model: model,
+            brand: brand,
+          };
+        });
     }
-    const name = `${brand} ${model} ${category.name}`;
-    const prod = this.getByReferenceOrAdd(this.products,
-                                                      name,
-                                                      (reference, name) => {
-                                                        return {
-                                                          name: name,
-                                                          reference: reference,
-                                                          model: model,
-                                                          brand: brand,
-                                                        };
-                                                      });
     return prod;
   }
 
   getProductCategory(asset) {
+    if (!asset.type) {
+      asset.type = 'Unknown';
+    }
     return this.getByReferenceOrAdd(this.categories,
                                     asset.type,
                                     (reference, assetType) => {

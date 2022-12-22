@@ -6,22 +6,22 @@ const LoggedError = require('../../../library/helpers/errors/logged_error');
 const Js4meHelper = require('../../../library/helpers/js_4me_helper');
 
 class DiscoveryMutationHelper {
-  constructor(referenceData, generateLabels, installations) {
+  constructor(referenceData, generateLabels, SitesReferences) {
     this.referenceData = referenceData;
     this.generateLabels = generateLabels;
-    this.installations = installations;
     this.runzeroHelper = new runzeroHelper();
     this.timeHelper = new TimeHelper();
     this.categories = [];
+    this.siterefs = SitesReferences;
   }
 
-  toDiscoveryUploadInput(installationName, assets) {
+  toDiscoveryUploadInput(assets) {
+    //console.log(assets); // to remove
     assets.forEach(a => this.addCi(a));
 
-    const otherSources = this.installations.filter(i => i !== installationName).map(this.sourceForInstallation);
     return {
-      source: this.sourceForInstallation(installationName),
-      alternativeSources: otherSources.concat('runzero'),
+      source: 'runZero',
+      alternativeSources: 'runZero',
       referenceStrategies: {
         ciUserIds: {strategy: 'APPEND'},
       },
@@ -30,10 +30,13 @@ class DiscoveryMutationHelper {
   }
 
   addCi(asset) {
-    const key = asset.id;
+    console.log(asset); // to remove
+    const key = (asset.id) ? asset.id : asset.software_id;
     try {
       const mappedProduct = this.mapProduct(asset);
-      const ci = this.createCi(asset, mappedProduct);
+      console.log(mappedProduct); // to remove
+      const ci = (asset.id) ? this.createCi(asset, mappedProduct) : this.createSoftwareCi(asset, mappedProduct);
+      console.log(ci)
       mappedProduct.configurationItems.push(ci);
     } catch (e) {
       console.error(`Error processing: ${key}`);
@@ -41,14 +44,27 @@ class DiscoveryMutationHelper {
     }
   }
 
-  createCi(asset, product) {
+  createSoftwareCi(asset, product) {
+    console.log(`CI Software Create: ${asset} - ${product}`) //to remove
     const ci = {
-      sourceID: asset.site_name,
+      sourceID: asset.software_id,
+      systemID: asset.software_id,
+      status: 'in_production'
+    };
+    ci.name = product.name + " " + asset.software_version;
+    console.log(ci); //to remove
+    return ci;
+  }
+
+  createCi(asset, product) {
+    console.log(`CI Create: ${asset} - ${product}`) //to remove
+    const ci = {
+      sourceID: asset.id,
       systemID: asset.id,
       status: 'in_production'
     };
 
-    const runzeroName = asset.names[0];
+    const runzeroName = asset.names[0] + " (NEW)";
     if (this.generateLabels) {
       ci.name = product.name;
       ci.label = runzeroName;
@@ -56,34 +72,37 @@ class DiscoveryMutationHelper {
       ci.name = runzeroName;
     }
 
-    /* if (asset.allUsers) {
-      const nodeIDs = asset.allUsers.map(u => this.mapUser(u)).filter(n => !!n);
-      if (nodeIDs.length > 0) {
-        ci.userIds = nodeIDs;
-      }
-    } else if (asset.assetBasicInfo.userName) {
-      const userNodeID = this.mapUser(asset.assetBasicInfo.userName);
-      if (userNodeID) {
-        ci.userIds = [userNodeID];
-      }
+    const userNodeID = this.mapUser("runZero User");
+    if (userNodeID) {
+      ci.userIds = [userNodeID];
     }
+
+   /*  if (asset.site_name) {
+      const siteID = this.mapSite(asset.site_name);
+      if (siteID) {
+        ci.siteId = siteID;
+      }
+    } */
+    /*
     if (asset.softwares) {
       const softwareIDs = this.mapSoftware(asset.softwares);
       if (softwareIDs.length > 0) {
         ci.ciRelations = {childIds: softwareIDs};
       }
     }*/
+    /*
     if (asset.os) {
       const softwareIDs = asset.os;
         if (ci.ciRelations) {
-          ci.ciRelations.childIds = ci.ciRelations.childIds.concat(softwareIDs)
+          ci.ciRelations.childIds = ci.ciRelations.childIds.concat([softwareIDs])
         } else {
           ci.ciRelations = {childIds: softwareIDs}
         }
-    }
+    }*/
+    console.log(ci); //to remove
     return ci;
   }
-  
+
   mapUser(userName) {
     const name = userName && userName.toLowerCase();
     return this.referenceData.users.get(name);
@@ -91,6 +110,18 @@ class DiscoveryMutationHelper {
 
   mapSoftware(softwares) {
     return this.mapSoftwareName(softwares.map(s => s.name));
+  }
+
+  mapSite(siteName) {
+    let siteMatch;
+    try {
+      siteMatch =  this.siterefs.find(o => o.name === siteName).id;
+    } catch (e) {
+      console.error(`Error finding Asset Site match: ${siteName}`);
+      throw new LoggedError(e);
+    }
+    //console.log(siteMatch); // to remove
+    return siteMatch
   }
 
   mapSoftwareName(softwareNames) {
@@ -139,8 +170,8 @@ class DiscoveryMutationHelper {
     }
   }
 
-  sourceForInstallation(installation) {
-    return `runzero-${installation}`.substring(0, Js4meHelper.MAX_SOURCE_LENGTH);
+  siteSource(site) {
+    return `runzero-${site}`.substring(0, Js4meHelper.MAX_SOURCE_LENGTH);
   }
 }
 

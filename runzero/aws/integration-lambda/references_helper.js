@@ -20,19 +20,25 @@ class ReferencesHelper {
     const accessToken = await this.customer4meHelper.getToken();
 
     return {
-      softwareCis: await this.getSoftwareReferences(accessToken, assets),
-      //users: await this.getUserReferences(accessToken, assets),
+      //softwareCis: await this.getSoftwareReferences(accessToken, assets),
+      users: await this.getUserReferences(accessToken, assets),
     };
   }
 
   async lookup4meSiteReferences(site) {
     const accessToken = await this.customer4meHelper.getToken();
     const siteLookup = await this.lookupSiteName(accessToken, site);
-    const siteReturn = siteLookup.sites.nodes
+    const siteReturn = siteLookup.sites.nodes[0];
+    //console.log(siteReturn); // to remove
     if (!siteReturn || siteReturn.length === 0) {
       return false
     }
     return siteReturn;
+  }
+
+  async lookup4meSoftwareReferences() {
+    const accessToken = await this.customer4meHelper.getToken();
+    return await this.lookupAllSoftware(accessToken);
   }
 
   async getSoftwareReferences(accessToken, assets) {
@@ -43,8 +49,8 @@ class ReferencesHelper {
   }
 
   async getUserReferences(accessToken, assets) {
-    const userNames = this.runzeroHelper.extractUserNames(assets);
-    return await this.getUserNameToIdMap(userNames, accessToken);
+    //const userNames = this.runzeroHelper.extractUserNames(assets);
+    return await this.getUserNameToIdMap(["runZero User",], accessToken);
   }
 
   async getSoftwareNameToIdMap(softwareNames, accessToken) {
@@ -149,9 +155,9 @@ ${queries.join('\n')}
     return this.peopleFound;
   }
 
-  async lookupSiteName(site) {
+  async lookupSiteName(accessToken, site) {
     const query = `query {
-              sites(first: 1,filter: {name: {values: ${site}}})
+              sites(first: 1,filter: {name: {values: "${site.name}"}})
               {
               nodes { id name remarks disabled }
               }

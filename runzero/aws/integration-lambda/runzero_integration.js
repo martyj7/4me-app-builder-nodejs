@@ -16,6 +16,7 @@ class runzeroIntegration {
     this.customer4meHelper = customer4meHelper;
     this.referenceHelper = new ReferenceHelper(customer4meHelper);
     this.resultHelper = new ResultHelper();
+    this.SitesReferences = [];
   }
 
   async validateCredentials() {
@@ -26,10 +27,11 @@ class runzeroIntegration {
     return true;
   }
 
-  async processSites(configAssetTypes, generateLabels, siteFilter, siteNames, sitesAssetsOnly) {
+  async processAll(configAssetTypes, generateLabels, siteFilter, siteNames, sitesAssetsOnly) {
     let siteList;
     try {
       siteList = await this.runzeroClient.getSites(siteFilter, siteNames, sitesAssetsOnly);
+      //console.log(siteList); // to remove
     } catch (error) {
       if (error instanceof runzeroAPIError) {
         return {error: error.message};
@@ -46,18 +48,34 @@ class runzeroIntegration {
           assetTypes = configAssetTypes.filter(at => allAssetTypes.indexOf(at) > -1);
         }
     }
-    const result = {uploadCounts: {}, info: {}, errors: {}};
+    const result = { uploadCounts: {}, info: {}, errors: {} };
+    console.log('processing sites');
+    let siteCounts = 0;
+    let siteErrors = {};
     for (const site of siteList) {
-      const siteResult = await this.sendSitesto4me(site.name);
-      result.uploadCounts[site.name] = siteResult.uploadCount;
+      //console.log(site.name); //to remove
+      const siteResult = await this.sendSitesto4me(site);
       if (siteResult.errors) {
-        result.errors[site.name] = siteResult.errors;
+        siteErrors[site.name] = siteResult.errors;
+      } else {
+        siteCounts += 1;
       }
     }
+    result.uploadCounts["Sites"] = siteCounts;
+    if (siteErrors) {
+        result.errors["Sites"] = siteErrors;
+    }
+
+    const softwareResult = await this.processSoftware(generateLabels, assetTypes);
+    result.uploadCounts['Software'] = softwareResult.uploadCount;
+      if (softwareResult.errors) {
+        result.errors['Software'] = softwareResult.errors;
+      }
+
     const assetResult = await this.processAssets(generateLabels, assetTypes);
     result.uploadCounts['Assets'] = assetResult.uploadCount;
       if (assetResult.errors) {
-        result.errors['Assets'] = assetResult.errors[site.name];
+        result.errors['Assets'] = assetResult.errors;
       }
     
     return this.resultHelper.cleanupResult(result);
@@ -67,6 +85,17 @@ class runzeroIntegration {
     console.log('processing assets');
     const itemsHandler = async items => await this.sendAssetsTo4me(items, generateLabels);
     const sendResults = await this.runzeroClient.getAssets(itemsHandler, assetTypes);
+    const jsonResults = await this.downloadResults(sendResults.map(r => r.mutationResult));
+    const overallResult = this.reduceResults(sendResults, jsonResults);
+    console.log(`Upload count: ${overallResult.uploadCount}, error count: ${overallResult.errors ? overallResult.errors.length : 0}`); 
+    
+    return overallResult;
+  }
+
+  async processSoftware(generateLabels, assetTypes) {
+    console.log('processing software');
+    const itemsHandler = async items => await this.sendSoftwareto4me(items, generateLabels);
+    const sendResults = await this.runzeroClient.getSoftware(itemsHandler, assetTypes);
     const jsonResults = await this.downloadResults(sendResults.map(r => r.mutationResult));
     const overallResult = this.reduceResults(sendResults, jsonResults);
     console.log(`Upload count: ${overallResult.uploadCount}, error count: ${overallResult.errors ? overallResult.errors.length : 0}`); 
@@ -84,7 +113,9 @@ class runzeroIntegration {
         "remarks": "Created by runZero, SiteID: " + site.id
       };
       let discoType = 'siteCreate'
+      //console.log(referenceData); //to remove
       if (referenceData) {
+        this.SitesReferences.push(referenceData);
         input.id = referenceData.id
         discoType = 'siteUpdate'
       }
@@ -95,7 +126,7 @@ class runzeroIntegration {
         } else if (mutationResult.errors) {
           errors.push(...this.mapErrors(mutationResult.errors));
         } else {
-          result.mutationResult = mutationResult;
+          result.uploadCount = 1;
         }
       } catch (e) {
         if (e instanceof Js4meAuthorizationError) {
@@ -104,20 +135,59 @@ class runzeroIntegration {
         }
         console.error(e);
         errors.push(`Unable to upload site to 4me.`);
+    }
+    
+      return result;
+  }
+
+  async sendSoftwareto4me(softwares, generateLabels = false) {
+    console.log(softwares); // to remove
+    const errors = [];
+    const result = {uploadCount: 0, errors: errors};
+    if (softwares.length !== 0) {
+      //let assetsToProcess = this.removeAssetsNotSeenRecently(assets);
+      let assetsToProcess = softwares;
+      if (assetsToProcess.length !== 0) {
+        try {
+          const referenceData = await this.referenceHelper.lookup4meSoftwareReferences();
+          const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, this.SitesReferences);
+          const input = discoveryHelper.toDiscoveryUploadInput(assetsToProcess);
+          //console.log(input); // to remove
+          const mutationResult = await this.uploadTo4me(input);
+
+          if (mutationResult.error) {
+            errors.push(mutationResult.error);
+          } else if (mutationResult.errors) {
+            errors.push(...this.mapErrors(mutationResult.errors));
+          } else {
+            result.mutationResult = mutationResult;
+          }
+        } catch (e) {
+          if (e instanceof Js4meAuthorizationError) {
+            // no need to keep process going
+            throw e;
+          }
+          console.error(e);
+          errors.push(`Unable to upload assets to 4me.`);
+        }
       }
-      return [result];
+    }
+    return [result];
   }
 
   async sendAssetsTo4me(assets, generateLabels = false) {
+    //console.log(assets); // to remove
     const errors = [];
     const result = {uploadCount: 0, errors: errors};
     if (assets.length !== 0) {
-      let assetsToProcess = this.removeAssetsNotSeenRecently(assets);
+      //let assetsToProcess = this.removeAssetsNotSeenRecently(assets);
+      let assetsToProcess = assets;
       if (assetsToProcess.length !== 0) {
         try {
           const referenceData = await this.referenceHelper.lookup4meReferences(assetsToProcess);
-          const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, installations);
-          const input = discoveryHelper.toDiscoveryUploadInput(installation, assetsToProcess);
+          const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, this.SitesReferences);
+          const input = discoveryHelper.toDiscoveryUploadInput(assetsToProcess);
+          //console.log(input); // to remove
           const mutationResult = await this.uploadTo4me(input);
 
           if (mutationResult.error) {
@@ -142,7 +212,7 @@ class runzeroIntegration {
 
   removeAssetsNotSeenRecently(assets) {
     const recentCutOff = this.assetSeenCutOffDate().getTime();
-    const recentAssets = assets.filter(asset => !asset.assetBasicInfo.lastSeen || (Date.parse(asset.assetBasicInfo.lastSeen) > recentCutOff));
+    const recentAssets = assets.filter(asset => !asset.last_seen || (Date.parse(asset.last_seen) > recentCutOff));
     if (recentAssets.length < assets.length) {
       console.info(`Skipping ${assets.length - recentAssets.length} assets that have not been seen in ${runzeroIntegration.LAST_SEEN_DAYS} days.`)
     }
@@ -221,6 +291,7 @@ class runzeroIntegration {
   async uploadTo4me(input) {
     const query = runzeroIntegration.graphQL4meMutation('id sourceID');
     const accessToken = await this.customer4meHelper.getToken();
+    //console.log(query); // to remove
     const result = await this.customer4meHelper.executeGraphQLMutation('discovered CIs',
                                                                        accessToken,
                                                                        query,
@@ -234,8 +305,8 @@ class runzeroIntegration {
   }
 
   async uploadSiteTo4me(input, discoType) {
-    const fields = (discoType == 'siteCreate') ? 'name remarks': 'id name remarks';
-    const inputType = discoType + 'Input';
+    const fields = (discoType == 'siteCreate') ? 'name remarks' : 'id name remarks';
+    const inputType = (discoType == 'siteCreate') ? 'SiteCreateInput' : 'SiteUpdateInput';
     const query =  `
       mutation($input: ${inputType}!) {
         ${discoType}(input: $input) {

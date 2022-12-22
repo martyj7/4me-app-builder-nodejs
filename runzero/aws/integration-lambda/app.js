@@ -47,16 +47,14 @@ async function updaterunzeroAuthStatus(options) {
     console.log('Unable to query instance. Too quick after app offering installation?');
     return config;
   }
-  console.info(config);
-
+  console.info(config); // to remove
+  instanceInput = null;
   if (config.connectionStatus === 'success') {
     instanceInput = await getInvalidCurrentAuthorizationInput(customerContext, config);
     if (!instanceInput.suspended) {
       return config;
     }
   }
-
-  let instanceInput = null;
   instanceInput = await getPendingAuthorizationInput(customerContext, config);
   if (instanceInput.error) {
     return instanceInput;
@@ -71,7 +69,7 @@ async function updaterunzeroAuthStatus(options) {
     const handler = new runzeroLambdaHandler(options, process.env.REFRESH_QUEUE_URL);
     const refreshToken = await handler.updateRefreshToken(customerContext, config);
     const results = await handler.sendRefreshMessage(customerAccount);
-    console.log(results)
+    //console.log(results) // to remove
   } 
   return updateCustomFields;
 }

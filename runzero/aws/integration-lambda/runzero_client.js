@@ -39,34 +39,32 @@ class runzeroClient {
 
   }
   async getSites(siteFilter, siteNames, sitesAssetsOnly) {
-    if (!this.sites) {
-      this.sites = [];
-      const result = await this.apiHelper.getRESTQuery('runzero sites', 'site');
-      if (result.error) {
-        console.info(`Unable to query sites: ${result.error}`);
-        throw new runzeroAPIError(result.error);
-      } else {
-        if (!result || result.length === 0) {
-          console.error('No sites in runzero response, got:\n%j', result);
-          throw new runzeroAuthorizationError('No sites returned in response');
-        }
-       result.forEach(function (checksite) {
-          if (sitesAssetsOnly){
-            if (checksite.asset_count > 0) {
-              this.sites.push(checksite);
-            }
-          } else if (siteFilter) {
-             if (siteNames.includes(checksite.name)) {
-              this.sites.push(checksite);
-            }
-          }
-          else {
-            this.sites.push(checksite);
-         }
-        });
+    let sites = [];
+    const result = await this.apiHelper.getRESTQuery('runzero sites', 'site');
+    if (result.error) {
+      console.info(`Unable to query sites: ${result.error}`);
+      throw new runzeroAPIError(result.error);
+    } else {
+      if (!result || result.length === 0) {
+        console.error('No sites in runzero response, got:\n%j', result);
+        throw new runzeroAuthorizationError('No sites returned in response');
       }
+      result.forEach(function (checksite) {
+        if (sitesAssetsOnly){
+          if (checksite.asset_count > 0) {
+            sites.push(checksite);
+          }
+        } else if (siteFilter) {
+            if (siteNames.includes(checksite.name)) {
+            sites.push(checksite);
+          }
+        }
+        else {
+          sites.push(checksite);
+        }
+      });
     }
-    return this.sites;
+    return sites;
   }
 
   async getAssetTypes() {
@@ -87,9 +85,9 @@ class runzeroClient {
       assetTypes.forEach(element => {
         filter += `type:'${element}' or `;
       });
-      var result = await this.apiHelper.getRESTQuery('Site assets', asset, filter.slice(0, -3));
+      var result = await this.apiHelper.getRESTQuery('Assets', 'asset', filter.slice(0, -3));
     } else {
-      var result = await this.apiHelper.getRESTQuery('Site assets', asset);
+      var result = await this.apiHelper.getRESTQuery('Assets', 'asset');
     }
 
     if (result.error) {
@@ -108,17 +106,17 @@ class runzeroClient {
       assetTypes.forEach(element => {
         filter += `type:'${element}' or `;
       });
-      var result = await this.apiHelper.getRESTQuery('Site assets', asset, filter.slice(0, -3));
+      var result = await this.apiHelper.getRESTQuery('Software', 'software', filter.slice(0, -3));
     } else {
-      var result = await this.apiHelper.getRESTQuery('Site assets', asset);
+      var result = await this.apiHelper.getRESTQuery('Software', 'software');
     }
 
     if (result.error) {
-      console.error(`Error Getting assets: ${result.error}`)
+      console.error(`Error Getting Software: ${result.error}`)
     } else {
       itemResults = await itemsHandler(result);
     }
-
+     console.log(itemResults); // to remove
     return itemResults;
   }
 }

@@ -21,8 +21,8 @@ class runzeroLambdaHandler {
   }
 
   async handleScheduledEvent(event, context) {
-    console.log(event);
-    console.log(context);
+    console.log(event); // to remove
+    console.log(context); // to remove
     const lambda4meContext = await this.lambda4meContextHelper.assembleProviderOnly();
     if (!lambda4meContext.providerContext) {
       return this.unknownError('Configuration error, unable to query 4me');
@@ -188,7 +188,7 @@ class runzeroLambdaHandler {
     let resultsPerSite;
     try {
       const integration = new runzeroIntegration(config.clientID, clientSecret, config.rzURL, config.orgName, config.CredOption, customerContext.js4meHelper);
-      resultsPerSite = await integration.processSites(assetTypes, generateLabels, siteFilter, config.siteNames, sitesAssetsOnly);
+      resultsPerSite = await integration.processAll(assetTypes, generateLabels, siteFilter, config.siteNames, sitesAssetsOnly);
     } catch (error) {
       if (error instanceof runzeroAuthorizationError) {
         return await this.suspendUnauthorizedInstance(lambda4meContext, config, error);

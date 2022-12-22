@@ -29,7 +29,7 @@ class runZeroApiHelper {
     this.tokenExpiresIn = false;
     this.tokenExpireTime = false;
     const tester = `${this.clientId} -  ${this.clientSecret} -  ${this.apiUrl} - ${this.orgName} -  ${this.CredOption} -  ${this.accessToken} - ${this.oauthUrl}`
-    console.info(tester);
+    console.info(tester); // to remove
   }
 
   createClient(url, bearerToken) {
@@ -80,7 +80,7 @@ class runZeroApiHelper {
           grant_type: 'client_credentials',
         }
       );
-      console.error(response);
+      //console.error(response); // to remove
       const response = lecResponse.data;
       if (response && response.access_token) {
         this.accessToken = response.access_token;
