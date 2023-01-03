@@ -21,8 +21,8 @@ class runzeroLambdaHandler {
   }
 
   async handleScheduledEvent(event, context) {
-    console.log(event); // to remove
-    console.log(context); // to remove
+    //console.log(event); // to remove
+    //console.log(context); // to remove
     const lambda4meContext = await this.lambda4meContextHelper.assembleProviderOnly();
     if (!lambda4meContext.providerContext) {
       return this.unknownError('Configuration error, unable to query 4me');

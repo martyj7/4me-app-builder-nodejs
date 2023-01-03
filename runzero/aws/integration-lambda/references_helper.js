@@ -20,7 +20,7 @@ class ReferencesHelper {
     const accessToken = await this.customer4meHelper.getToken();
 
     return {
-      //softwareCis: await this.getSoftwareReferences(accessToken, assets),
+      softwareCis: await this.lookup4meSoftwareReferences(accessToken),
       users: await this.getUserReferences(accessToken, assets),
     };
   }

@@ -17,6 +17,7 @@ class runzeroIntegration {
     this.referenceHelper = new ReferenceHelper(customer4meHelper);
     this.resultHelper = new ResultHelper();
     this.SitesReferences = [];
+    this.SoftwareReferences = [];
   }
 
   async validateCredentials() {
@@ -28,6 +29,8 @@ class runzeroIntegration {
   }
 
   async processAll(configAssetTypes, generateLabels, siteFilter, siteNames, sitesAssetsOnly) {
+
+    // Create/update sites first
     let siteList;
     try {
       siteList = await this.runzeroClient.getSites(siteFilter, siteNames, sitesAssetsOnly);
@@ -55,29 +58,32 @@ class runzeroIntegration {
     for (const site of siteList) {
       //console.log(site.name); //to remove
       const siteResult = await this.sendSitesto4me(site);
-      if (siteResult.errors) {
+      if (siteResult.errors.length > 0) {
         siteErrors[site.name] = siteResult.errors;
-      } else {
-        siteCounts += 1;
-      }
+      } 
+      siteCounts += 1;
     }
     result.uploadCounts["Sites"] = siteCounts;
-    if (siteErrors) {
+    console.log(`Site error length: ${Object.keys(siteErrors).length}`); // to remove
+    if (Object.keys(siteErrors).length > 0) {
         result.errors["Sites"] = siteErrors;
     }
 
+    // create/update software CIs next
     const softwareResult = await this.processSoftware(generateLabels, assetTypes);
     result.uploadCounts['Software'] = softwareResult.uploadCount;
       if (softwareResult.errors) {
         result.errors['Software'] = softwareResult.errors;
-      }
-
+    }
+    
+    // create/update assets last
     const assetResult = await this.processAssets(generateLabels, assetTypes);
     result.uploadCounts['Assets'] = assetResult.uploadCount;
       if (assetResult.errors) {
         result.errors['Assets'] = assetResult.errors;
       }
     
+    // return the results
     return this.resultHelper.cleanupResult(result);
   }
 
@@ -141,7 +147,7 @@ class runzeroIntegration {
   }
 
   async sendSoftwareto4me(softwares, generateLabels = false) {
-    console.log(softwares); // to remove
+    //console.log(softwares); // to remove
     const errors = [];
     const result = {uploadCount: 0, errors: errors};
     if (softwares.length !== 0) {
@@ -150,10 +156,12 @@ class runzeroIntegration {
       if (assetsToProcess.length !== 0) {
         try {
           const referenceData = await this.referenceHelper.lookup4meSoftwareReferences();
-          const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, this.SitesReferences);
-          const input = discoveryHelper.toDiscoveryUploadInput(assetsToProcess);
-          //console.log(input); // to remove
-          const mutationResult = await this.uploadTo4me(input);
+          const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, this.SitesReferences, this.SoftwareReferences);
+          const input = discoveryHelper.toDiscoverySWUploadInput(assetsToProcess);
+          this.SoftwareReferences = assetsToProcess;
+          //console.log(assetsToProcess); // to remove
+          //console.log(input.physicalAssets); // to remove
+          const mutationResult = await this.uploadSWTo4me(input);
 
           if (mutationResult.error) {
             errors.push(mutationResult.error);
@@ -168,10 +176,11 @@ class runzeroIntegration {
             throw e;
           }
           console.error(e);
-          errors.push(`Unable to upload assets to 4me.`);
+          errors.push(`Unable to upload software to 4me.`);
         }
       }
     }
+    //console.log(result); // to remove
     return [result];
   }
 
@@ -185,9 +194,9 @@ class runzeroIntegration {
       if (assetsToProcess.length !== 0) {
         try {
           const referenceData = await this.referenceHelper.lookup4meReferences(assetsToProcess);
-          const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, this.SitesReferences);
+          const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, this.SitesReferences, this.SoftwareReferences);
           const input = discoveryHelper.toDiscoveryUploadInput(assetsToProcess);
-          //console.log(input); // to remove
+          //console.log(input.products); // to remove
           const mutationResult = await this.uploadTo4me(input);
 
           if (mutationResult.error) {
@@ -302,6 +311,32 @@ class runzeroIntegration {
     } else {
       return result;
     }
+  }
+
+  async uploadSWTo4me(input) {
+    const results = [];
+    const query = `
+      mutation($input: ConfigurationItemCreateInput!) {
+        configurationItemCreate(input: $input) {
+          errors { path message }
+        }
+      }`;
+    console.log(input.physicalAssets); //to remove
+    console.log(input.physicalAssets[0].products[0]); //to remove
+    const accessToken = await this.customer4meHelper.getToken();
+    input.forEach(s => {
+      const result = this.customer4meHelper.executeGraphQLMutation('discovered Softwares',
+                                                                       accessToken,
+                                                                       query,
+                                                                       {input: s});
+      if (result.error) {
+        console.error('Error uploading:\n%j', result);
+        throw new LoggedError('Unable to upload to 4me');
+      } else {
+        results.push(result);
+      }
+    });
+    return results;
   }
 
   async uploadSiteTo4me(input, discoType) {

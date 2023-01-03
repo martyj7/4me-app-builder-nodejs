@@ -6,19 +6,20 @@ const LoggedError = require('../../../library/helpers/errors/logged_error');
 const Js4meHelper = require('../../../library/helpers/js_4me_helper');
 
 class DiscoveryMutationHelper {
-  constructor(referenceData, generateLabels, SitesReferences) {
+  constructor(referenceData, generateLabels, SitesReferences, softwareRefs) {
     this.referenceData = referenceData;
     this.generateLabels = generateLabels;
     this.runzeroHelper = new runzeroHelper();
     this.timeHelper = new TimeHelper();
     this.categories = [];
     this.siterefs = SitesReferences;
+    this.softwareAssetIDs = softwareRefs;
   }
 
   toDiscoveryUploadInput(assets) {
     //console.log(assets); // to remove
+    //console.log(this.referenceData.softwareCis); // to remove
     assets.forEach(a => this.addCi(a));
-
     return {
       source: 'runZero',
       alternativeSources: 'runZero',
@@ -29,14 +30,28 @@ class DiscoveryMutationHelper {
     };
   }
 
+   toDiscoverySWUploadInput(assets) {
+    //console.log(assets); // to remove
+    assets.forEach(a => this.addSWCi(a));
+    return this.categories[0].products
+    /* return {
+      source: 'runZero',
+      alternativeSources: 'runZero',
+      referenceStrategies: {
+        ciUserIds: {strategy: 'APPEND'},
+      },
+      physicalAssets: this.categories,
+    }; */
+  }
+
   addCi(asset) {
-    console.log(asset); // to remove
-    const key = (asset.id) ? asset.id : asset.software_id;
+    //console.log(asset); // to remove
+    const key = asset.id;
     try {
       const mappedProduct = this.mapProduct(asset);
-      console.log(mappedProduct); // to remove
-      const ci = (asset.id) ? this.createCi(asset, mappedProduct) : this.createSoftwareCi(asset, mappedProduct);
-      console.log(ci)
+      //console.log(mappedProduct); // to remove
+      const ci = this.createCi(asset, mappedProduct);
+      //console.log(ci)
       mappedProduct.configurationItems.push(ci);
     } catch (e) {
       console.error(`Error processing: ${key}`);
@@ -44,20 +59,37 @@ class DiscoveryMutationHelper {
     }
   }
 
+  addSWCi(asset) {
+    //console.log(asset); // to remove
+    const key = asset.software_id;
+    try {
+      const mappedProduct = this.mapSWProduct(asset);
+      //console.log(mappedProduct); // to remove
+      const ci = this.createSoftwareCi(asset, mappedProduct);
+      if (mappedProduct.configurationItems.filter(e => e.name === ci.name).length == 0) {
+        //console.log(`Push to CI collection: ${ci.name}`); // to remove
+        mappedProduct.configurationItems.push(ci);
+      }
+    } catch (e) {
+      console.error(`Error processing: ${key}`);
+      throw new LoggedError(e);
+    }
+  }
+
   createSoftwareCi(asset, product) {
-    console.log(`CI Software Create: ${asset} - ${product}`) //to remove
+    //console.log(`CI Software Create: ${asset} - ${product}`) //to remove
     const ci = {
-      sourceID: asset.software_id,
-      systemID: asset.software_id,
+      sourceID: product.name,
+      systemID: product.name,
       status: 'in_production'
     };
-    ci.name = product.name + " " + asset.software_version;
-    console.log(ci); //to remove
+    ci.name = product.name + ' ' + asset.software_version;
+    //console.log(ci); //to remove
     return ci;
   }
 
   createCi(asset, product) {
-    console.log(`CI Create: ${asset} - ${product}`) //to remove
+    //console.log(`CI Create: ${asset} - ${product}`) //to remove
     const ci = {
       sourceID: asset.id,
       systemID: asset.id,
@@ -83,6 +115,13 @@ class DiscoveryMutationHelper {
         ci.siteId = siteID;
       }
     } */
+    if (this.softwareAssetIDs.filter(e => e.software_asset_id === asset.id).length > 0) {
+      const softwareIDs = this.mapSoftware(this.softwareAssetIDs, asset.id);
+      if (softwareIDs.length > 0) {
+        ci.ciRelations = {childIds: softwareIDs};
+      }
+    }
+    console.log(ci.ciRelations); // to remove
     /*
     if (asset.softwares) {
       const softwareIDs = this.mapSoftware(asset.softwares);
@@ -99,7 +138,7 @@ class DiscoveryMutationHelper {
           ci.ciRelations = {childIds: softwareIDs}
         }
     }*/
-    console.log(ci); //to remove
+    //console.log(ci); //to remove
     return ci;
   }
 
@@ -108,8 +147,22 @@ class DiscoveryMutationHelper {
     return this.referenceData.users.get(name);
   }
 
-  mapSoftware(softwares) {
+  mapSoftware(softwares, asset) {
+    var result = [];
+    softwares.forEach(function (o) { if (o.software_asset_id === asset) result.push(`Software - ${o.software_vendor} ${o.software_product} ${o.software_version}`); });
+    //console.log(result); // to remove
+    return result ? this.mapSoftwareName(result) : null;
+
+  }
+
+   mapSoftwareIds(softwares) {
     return this.mapSoftwareName(softwares.map(s => s.name));
+  }
+
+   mapSoftwareName(softwareNames) {
+    return softwareNames
+      .map(n => this.referenceData.softwareCis.get(n))
+      .filter(id => !!id);
   }
 
   mapSite(siteName) {
@@ -124,29 +177,37 @@ class DiscoveryMutationHelper {
     return siteMatch
   }
 
-  mapSoftwareName(softwareNames) {
-    return softwareNames
-      .map(n => this.runzeroHelper.cleanupName(n))
-      .map(n => this.referenceData.softwareCis.get(n))
-      .filter(id => !!id);
+  mapProduct(asset) {
+      const product = this.runzeroHelper.getProduct(asset);
+      if (!product.mapped) {
+        product.mapped = {
+          meta: { strategy: 'CREATE' },
+          sourceID: product.reference,
+          name: product.name,
+          brand: product.brand,
+          model: product.model,
+          productID: product.sku,
+          configurationItems: [],
+        };
+        const category = this.mapCategory(asset);
+        this.addProduct(category, product.mapped);
+      }
+    return product.mapped;
   }
 
-  mapProduct(asset) {
-    const product = this.runzeroHelper.getProduct(asset);
-    if (!product.mapped) {
-      product.mapped = {
-        meta: {strategy: 'CREATE'},
-        sourceID: product.reference,
-        name: product.name,
-        brand: product.brand,
-        model: product.model,
-        productID: product.sku,
-        configurationItems: [],
-      };
-      const category = this.mapCategory(asset);
-      this.addProduct(category, product.mapped);
-    }
-
+  mapSWProduct(asset) {
+      const product = this.runzeroHelper.getProduct(asset);
+      if (!product.mapped) {
+        product.mapped = {
+          meta: { strategy: 'CREATE' },
+          sourceID: product.reference,
+          name: product.name,
+          brand: product.brand,
+          configurationItems: [],
+        };
+        const category = this.mapCategory(asset);
+        this.addProduct(category, product.mapped);
+      }
     return product.mapped;
   }
 

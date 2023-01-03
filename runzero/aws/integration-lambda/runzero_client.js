@@ -116,7 +116,7 @@ class runzeroClient {
     } else {
       itemResults = await itemsHandler(result);
     }
-     console.log(itemResults); // to remove
+     //console.log(itemResults); // to remove
     return itemResults;
   }
 }

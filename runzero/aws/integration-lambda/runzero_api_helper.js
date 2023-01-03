@@ -29,7 +29,7 @@ class runZeroApiHelper {
     this.tokenExpiresIn = false;
     this.tokenExpireTime = false;
     const tester = `${this.clientId} -  ${this.clientSecret} -  ${this.apiUrl} - ${this.orgName} -  ${this.CredOption} -  ${this.accessToken} - ${this.oauthUrl}`
-    console.info(tester); // to remove
+    //console.info(tester); // to remove
   }
 
   createClient(url, bearerToken) {

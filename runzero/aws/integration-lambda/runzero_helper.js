@@ -84,7 +84,7 @@ class runzeroHelper {
   }
 
   getProduct(asset) {
-    const prod = false;
+    let prod = false;
     if (asset.id) {
       const category = this.getProductCategory(asset);
       let brand = this.getBrand(asset.hw_vendor);
@@ -99,7 +99,6 @@ class runzeroHelper {
           model = 'Unknown';
         }
         model = this.getModel(assethw.join(" "));
-       //console.log(`${brand} ${model}`); // to remove
       }
       const name = `${brand} ${model} ${category.name}`;
       prod = this.getByReferenceOrAdd(this.products,
@@ -113,19 +112,14 @@ class runzeroHelper {
           };
         });
     } else {
-      const category = 'Software - ' + this.getProductCategory(asset);
-      let brand = this.getBrand(asset.software_vendor);
-      let model = this.getModel(asset.software_product);
-      const name = `${brand} ${model} ${category.name}`;
-      console.log(name); // to remove
+      const name = `${asset.software_vendor} ${asset.software_product}`
       prod = this.getByReferenceOrAdd(this.products,
         name,
         (reference, name) => {
           return {
             name: name,
-            reference: reference,
-            model: model,
-            brand: brand,
+            reference: 'software/other_type_of_software',
+            brand: asset.software_vendor,
           };
         });
     }
@@ -133,7 +127,9 @@ class runzeroHelper {
   }
 
   getProductCategory(asset) {
-    if (!asset.type) {
+    if (asset.software_id) {
+      asset.type = 'Software - Other Type of Software';
+    }else if (!asset.type) {
       asset.type = 'Unknown';
     }
     return this.getByReferenceOrAdd(this.categories,
@@ -158,6 +154,7 @@ class runzeroHelper {
         all[ref] = known;
       }
     }
+    //console.log(known); // to remove
     return known;
   }
 
