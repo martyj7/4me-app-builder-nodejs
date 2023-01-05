@@ -13,11 +13,14 @@
         "person:Read",
         "product-category:Create",
         "product-category:Update",
+        "product-category:Read",
         "product:Create",
         "product:Update",
+        "product:Read",
         "site:Create",
         "site:Read",
-        "site:Update"
+        "site:Update",
+        "team:Read"
       ]
     }
   ]

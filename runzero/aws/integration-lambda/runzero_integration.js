@@ -17,7 +17,10 @@ class runzeroIntegration {
     this.referenceHelper = new ReferenceHelper(customer4meHelper);
     this.resultHelper = new ResultHelper();
     this.SitesReferences = [];
+    this.SiteIds = [];
     this.SoftwareReferences = [];
+    this.storedConfigItems = [];
+    this.defaultTeamId;
   }
 
   async validateCredentials() {
@@ -64,16 +67,17 @@ class runzeroIntegration {
       siteCounts += 1;
     }
     result.uploadCounts["Sites"] = siteCounts;
-    console.log(`Site error length: ${Object.keys(siteErrors).length}`); // to remove
+    //console.log(`Site error length: ${Object.keys(siteErrors).length}`); // to remove
     if (Object.keys(siteErrors).length > 0) {
         result.errors["Sites"] = siteErrors;
     }
+    console.log(`Upload count: ${siteCounts}, error count: ${siteErrors ? siteErrors.length : 0}`); 
 
     // create/update software CIs next
     const softwareResult = await this.processSoftware(generateLabels, assetTypes);
     result.uploadCounts['Software'] = softwareResult.uploadCount;
-      if (softwareResult.errors) {
-        result.errors['Software'] = softwareResult.errors;
+      if (Object.keys(softwareResult.errors).length > 0) {
+        result.errors['Software'] = softwareResult.errors[0];
     }
     
     // create/update assets last
@@ -94,7 +98,6 @@ class runzeroIntegration {
     const jsonResults = await this.downloadResults(sendResults.map(r => r.mutationResult));
     const overallResult = this.reduceResults(sendResults, jsonResults);
     console.log(`Upload count: ${overallResult.uploadCount}, error count: ${overallResult.errors ? overallResult.errors.length : 0}`); 
-    
     return overallResult;
   }
 
@@ -102,11 +105,8 @@ class runzeroIntegration {
     console.log('processing software');
     const itemsHandler = async items => await this.sendSoftwareto4me(items, generateLabels);
     const sendResults = await this.runzeroClient.getSoftware(itemsHandler, assetTypes);
-    const jsonResults = await this.downloadResults(sendResults.map(r => r.mutationResult));
-    const overallResult = this.reduceResults(sendResults, jsonResults);
-    console.log(`Upload count: ${overallResult.uploadCount}, error count: ${overallResult.errors ? overallResult.errors.length : 0}`); 
-    
-    return overallResult;
+    console.log(`Upload count: ${sendResults.uploadCount}, error count: ${sendResults.errors[0] ? sendResults.errors[0].length : 0}`); 
+    return sendResults;
   }
 
   async sendSitesto4me(site) {
@@ -146,6 +146,34 @@ class runzeroIntegration {
       return result;
   }
 
+  async processOSs(assets) {
+    for (let asset of assets) {
+      if (asset.os && asset.os_product && asset.os_vendor) {
+        let sysID = `${asset.os} ${asset.os_version}`;
+      if (!asset.os_version) {
+        sysID = asset.os;
+      }
+        const OSConstruct =  [{
+                "meta": {
+                    "strategy": "CREATE"
+                },
+                "sourceID": "software/operating_system_software",
+                "name": asset.os,
+                "brand": asset.os_vendor,
+                "configurationItems": [
+                    {
+                        "sourceID": "runZero",
+                        "systemID": asset.os,
+                        "status": "in_production",
+                        "name": sysID
+                    }
+                ]
+            }]
+        const sendOS = await this.uploadSWTo4me(OSConstruct);
+      }
+    }
+  }
+
   async sendSoftwareto4me(softwares, generateLabels = false) {
     //console.log(softwares); // to remove
     const errors = [];
@@ -160,11 +188,11 @@ class runzeroIntegration {
           const input = discoveryHelper.toDiscoverySWUploadInput(assetsToProcess);
           this.SoftwareReferences = assetsToProcess;
           //console.log(assetsToProcess); // to remove
-          //console.log(input.physicalAssets); // to remove
+          //console.log(input); // to remove
           const mutationResult = await this.uploadSWTo4me(input);
 
-          if (mutationResult.error) {
-            errors.push(mutationResult.error);
+          if (mutationResult.errors) {
+            errors.push(mutationResult.errors);
           } else if (mutationResult.errors) {
             errors.push(...this.mapErrors(mutationResult.errors));
           } else {
@@ -181,7 +209,7 @@ class runzeroIntegration {
       }
     }
     //console.log(result); // to remove
-    return [result];
+    return result;
   }
 
   async sendAssetsTo4me(assets, generateLabels = false) {
@@ -193,12 +221,19 @@ class runzeroIntegration {
       let assetsToProcess = assets;
       if (assetsToProcess.length !== 0) {
         try {
+          const osAdds = await this.processOSs(assetsToProcess);
           const referenceData = await this.referenceHelper.lookup4meReferences(assetsToProcess);
           const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, this.SitesReferences, this.SoftwareReferences);
           const input = discoveryHelper.toDiscoveryUploadInput(assetsToProcess);
           //console.log(input.products); // to remove
           const mutationResult = await this.uploadTo4me(input);
-
+          console.log(JSON.stringify(mutationResult, null, 4)); // to remove
+          for (let i of assetsToProcess) {
+            await this.uploadRelationTo4me( this.SitesReferences,{
+              "label": i.names[0] + " (NEW)",
+              "siteId": i.site_name
+            });
+          }
           if (mutationResult.error) {
             errors.push(mutationResult.error);
           } else if (mutationResult.errors) {
@@ -297,6 +332,25 @@ class runzeroIntegration {
     return errors.map(e => e.message || e);
   }
 
+  async CISearch(ci) {
+    result = { "existing": false, "id": 0 };
+    let ciReturn = (this.storedConfigItems.length > 0) ? this.storedConfigItems.find(e => e.name == ci).id : undefined;
+    if (!ciReturn) {
+      //console.log(JSON.stringify(ci, null, 4)); // to remove
+      ciReturn = await this.customer4meHelper.RestAPIGet('CI Search',
+        accessToken,
+        `cis?name=${ci}&fields=id`,
+      );
+      if (ciReturn.data.length > 0) {
+        result.id = ciReturn.data[0].nodeID;
+        this.storedConfigItems.push({ "name": ci, "id": result.id });
+      }
+    } else {
+      result.existing = true;
+    }
+    return result;
+  }
+
   async uploadTo4me(input) {
     const query = runzeroIntegration.graphQL4meMutation('id sourceID');
     const accessToken = await this.customer4meHelper.getToken();
@@ -314,28 +368,88 @@ class runzeroIntegration {
   }
 
   async uploadSWTo4me(input) {
-    const results = [];
-    const query = `
-      mutation($input: ConfigurationItemCreateInput!) {
-        configurationItemCreate(input: $input) {
-          errors { path message }
-        }
-      }`;
-    console.log(input.physicalAssets); //to remove
-    console.log(input.physicalAssets[0].products[0]); //to remove
+    //console.log(JSON.stringify(input, null, 4)); // to remove
+    const errors = [];
+    const results = { uploadCount: 0, errors: errors };
+    const catQuery = `query {
+      productCategories(first: 100,filter: {ruleSet: {values: [software]},
+    references: ["${input[0].sourceID}"]}){ nodes { id } }
+    }`;
     const accessToken = await this.customer4meHelper.getToken();
-    input.forEach(s => {
-      const result = this.customer4meHelper.executeGraphQLMutation('discovered Softwares',
-                                                                       accessToken,
-                                                                       query,
-                                                                       {input: s});
-      if (result.error) {
-        console.error('Error uploading:\n%j', result);
-        throw new LoggedError('Unable to upload to 4me');
+    const categories = await this.customer4meHelper.executeGraphQLMutation('category Query',
+                                                                      accessToken,
+                                                                      catQuery);
+    const catID = categories.nodes[0].id;
+    const catName = input[0].sourceID;
+    if (!this.defaultTeamId) {
+      const teams = await this.customer4meHelper.RestAPIGet('Teams Query',
+        accessToken,
+        'teams?name=Service Desk',
+      );
+      this.defaultTeamId = teams.data[0].id;
+    }
+    const products = await this.customer4meHelper.RestAPIGet('Get Products',
+                                                          accessToken,
+                                                          `products?category=${input[0].sourceID}&per_page=100`,
+    );
+    //console.log(JSON.stringify(products.data, null, 4)); // to remove
+    for (let i of input) {
+      //console.log(JSON.stringify(i, null, 4)); // to remove
+      //console.log(`Prod: ${products.data.find(e => e.name === i.name).nodeID}`); // to remove
+      const thisProduct = {
+        "name": i.name, "brand": i.brand, "category": catName,
+        "sourceID": "runZero", "product_category_id": catID, "support_team": this.defaultTeamId
+      };
+      let productid;
+      if (products.data.filter(e => e.name === i.name.trim()).length == 0) {
+        const result = await this.customer4meHelper.RestAPIProductsPost('create product',
+          accessToken,
+          'products',
+          thisProduct);
+        if (result.error) {
+          console.error('Error uploading Software Product:\n%j', result.error);
+          errors.push(`Unable to upload Software Products to 4me - ${result.error}`);
+        } else {
+          productid = result.data.nodeID;
+        }
       } else {
-        results.push(result);
+        productid = products.data.find(e => e.name === i.name).nodeID
+      }  
+      for (let ci of i.configurationItems) {
+        ci.productId = productid;
+        ci.name = ci.name.trim();
+        let mutationType = "ConfigurationItemCreateInput";
+        let mutationAction = "configurationItemCreate";
+
+        const ciReturn = await this.CISearch(ci.name);
+        if (ciReturn.existing) {
+          ci.id = ciReturn.id;
+          delete ci.name;
+          mutationType = "ConfigurationItemUpdateInput";
+          mutationAction = "configurationItemUpdate";
+        }
+       
+        //console.log(ciReturn.data); // to remove
+        //console.log(ciReturn.data.length); // to remove
+       
+        const ciMutation = `mutation($input: ${mutationType}!) {
+          ${mutationAction}(input: $input) {
+            errors { path message }
+          }
+        }`
+        //console.log(JSON.stringify(ciMutation, null, 4)); // to remove
+        const ciResult = await this.customer4meHelper.executeGraphQLMutation('Upload CIs',
+          accessToken,
+          ciMutation,
+          { input: ci });
+        if (ciResult.error) {
+          console.error('Error uploading Software:\n%j', ciResult);
+          errors.push(`Unable to upload Software to 4me - ${ciResult.error}`);
+        } else {
+          results.uploadCount++;
+        }
       }
-    });
+    }
     return results;
   }
 
@@ -355,13 +469,39 @@ class runzeroIntegration {
                                                                        query,
                                                                        {input: input});
     if (result.error) {
-      console.error('Error uploading:\n%j', result);
-      throw new LoggedError('Unable to upload to 4me');
+      console.error('Error uploading site:\n%j', result);
+      throw new LoggedError('Unable to upload Site to 4me');
     } else {
       return result;
     }
   }
+
+  async uploadRelationTo4me(siterefs, input) {
+    const accessToken = await this.customer4meHelper.getToken();
+    const ciReturn = await this.CISearch(input.label);
+    if (ciReturn.existing) {
+      input.id= ciReturn.id;
+      delete input.label;
+      input.SiteId = siterefs.find(e => e.name == input.siteId);
+      const query = `
+        mutation($input: ConfigurationItemUpdateInput!) {
+          configurationItemUpdate(input: $input) {
+            errors { path message }
+          }
+        }`;
+      const result = await this.customer4meHelper.executeGraphQLMutation('discovered sites',
+        accessToken,
+        query,
+        { input: input });
+      if (result.error) {
+        console.error('Error uploading Site Links:\n%j', result);
+        throw new LoggedError('Unable to upload Ci to Site Links to 4me');
+      }
+    }
+  }
+
 }
+
 
 runzeroIntegration.graphQL4meMutation = (ciResponseFields) => {
   return `

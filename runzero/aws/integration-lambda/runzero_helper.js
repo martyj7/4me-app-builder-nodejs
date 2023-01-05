@@ -125,7 +125,7 @@ class runzeroHelper {
     }
     return prod;
   }
-
+ 
   getProductCategory(asset) {
     if (asset.software_id) {
       asset.type = 'Software - Other Type of Software';

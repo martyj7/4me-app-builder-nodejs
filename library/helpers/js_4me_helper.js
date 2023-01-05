@@ -34,7 +34,7 @@ class Js4meHelper {
     return this.account;
   }
 
-  createClient(url, bearerToken) {
+  createClient(url, bearerToken, rest) {
     const headers = {
       'X-4me-Account': this.account,
     };
@@ -265,6 +265,41 @@ class Js4meHelper {
     } catch (error) {
       console.error(error);
       throw new LoggedError(`Error from DELETE call: ${error.message}`);
+    }
+  }
+
+  async RestAPIProductsPost(descr, accessToken, resource, body) {
+    const form = new FormData();
+    form.append('name', body.name);
+    form.append('brand', body.brand);
+    form.append('category', body.category);
+    form.append('sourceID', body.sourceID);
+    form.append('product_category_id', body.product_category_id);
+    form.append('support_team', body.support_team);
+    try {
+      const client = this.createClient(this.restUrl, accessToken.access_token);
+      return await client.post(
+        `/v1/${resource}`,
+        form,
+        {
+          headers: form.getHeaders(),
+        },
+      );
+    } catch (error) {
+      console.error(error);
+      throw new LoggedError(`Error from REST Post '${descr}': ${error.message}`);
+    }
+  }
+
+   async RestAPIGet(descr, accessToken, resource) {
+    try {
+      const client = this.createClient(this.restUrl, accessToken.access_token);
+      return await client.get(
+        `/v1/${resource}`
+      );
+    } catch (error) {
+      console.error(error);
+      throw new LoggedError(`Error from REST Get '${descr}': ${error.message}`);
     }
   }
 

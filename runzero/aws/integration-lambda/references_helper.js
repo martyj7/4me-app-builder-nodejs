@@ -87,9 +87,9 @@ class ReferencesHelper {
   }
 
   async lookupAllSoftware(accessToken) {
-    if (this.allSoftware) {
+    /* if (this.allSoftware) {
       return this.allSoftware;
-    }
+    } */
 
     const query = `query($statuses: [CiStatus!]!, $previousEndCursor: String) {
       configurationItems(first: 100, after: $previousEndCursor,
@@ -112,6 +112,7 @@ class ReferencesHelper {
       });
       this.allSoftware = software;
     }
+    //console.log(software); // to remove
     return software;
   }
 
