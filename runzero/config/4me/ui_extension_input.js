@@ -183,7 +183,8 @@ ITRP.hooks.register('after-prefill', function () {
       $extension.find('.token-selected').toggleClass('hide', false);
       $('.selection :radio[value=export_token]').prop("checked", true).trigger('click');
     } else {
-        $extension.find('.client-selected').toggleClass('hide', false);
+      $extension.find('.client-selected').toggleClass('hide', false);
+      
         $('.selection :radio[value=api_client]').prop("checked", true).trigger('click');
     }
   }
@@ -194,6 +195,8 @@ ITRP.hooks.register('after-prefill', function () {
       $('.selection :radio[value=export_token]').prop("checked", true).trigger('click');
     } else {
       $extension.find('.client-selected').toggleClass('hide', false);
+      $extension.find('#export_secret').remove();
+      $connection_status.val('pending_authorization');
       $('.selection :radio[value=api_client]').prop("checked", true).trigger('click');
     }
   } 

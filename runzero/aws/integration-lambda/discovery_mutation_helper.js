@@ -90,11 +90,12 @@ class DiscoveryMutationHelper {
     //console.log(`CI Create: ${JSON.stringify(asset, null, 4)} - ${JSON.stringify(product, null, 4)}`) //to remove
     const ci = {
       sourceID: asset.id,
-      systemID: asset.id,
+      serialNr: asset.id,
+      systemID: `https://console.runzero.com/inventory/${asset.id}`,
       status: 'in_production'
     };
 
-    const runzeroName = asset.names[0] + " (NEW)";
+    const runzeroName = asset.names[0] + " (runzero)";
     if (this.generateLabels) {
       ci.name = product.name;
       ci.label = runzeroName;
@@ -150,7 +151,7 @@ class DiscoveryMutationHelper {
     this.softwareAssetIDs.forEach(function (o) {
       if (o.software_asset_id === asset) {
         let thisName = `${o.software_vendor} ${o.software_product} ${o.software_version}`;
-        let match = softwareCis.find(e => e.name == thisName);
+        let match = softwareCis.find(e => e.name == thisName.trim());
         if (match) {
           result.push(match.id)
         }

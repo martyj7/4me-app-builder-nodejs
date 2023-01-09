@@ -20,7 +20,10 @@
         "site:Create",
         "site:Read",
         "site:Update",
-        "team:Read"
+        "team:Read",
+        "organization:Read",
+        "organization:Update",
+        "organization:Create"
       ]
     }
   ]

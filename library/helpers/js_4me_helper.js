@@ -294,9 +294,27 @@ class Js4meHelper {
    async RestAPIGet(descr, accessToken, resource) {
     try {
       const client = this.createClient(this.restUrl, accessToken.access_token);
-      return await client.get(
-        `/v1/${resource}`
-      );
+      let results = [];
+      const firstPage = await client.get(`/v1/${resource}`);
+      for (const e of firstPage.data) {
+         results.push(e);
+      }
+      let currentPage = firstPage.headers['x-pagination-current-page'];
+      let cursor = firstPage.headers['x-pagination-end-cursor'];
+      let totalPages = firstPage.headers['x-pagination-total-pages'];
+      while (currentPage < totalPages) {
+        let nextPage = await client.get(`/v1/${resource}&search_after=${cursor}`);
+        if (nextPage.status == 200) {
+          for (const e of nextPage.data) {
+            results.push(e);
+          }
+          currentPage = nextPage.headers['x-pagination-current-page'];
+          cursor = nextPage.headers['x-pagination-end-cursor']
+        } else {
+          totalPages = 0
+        }
+      }
+      return results;
     } catch (error) {
       console.error(error);
       throw new LoggedError(`Error from REST Get '${descr}': ${error.message}`);

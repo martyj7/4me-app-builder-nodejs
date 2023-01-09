@@ -9,14 +9,15 @@ class runZeroApiHelper {
     this.clientSecret = clientSecret;
     this.clientId = clientId;
     this.orgName = orgname;
+    this.orgID;
     this.accessToken = false;
     this.CredOption = CredOption;
     this.apiUrl = url + '/api/v1.0';
     this.oauthUrl = `${this.apiUrl}/account/api`;
 
     this.resultFormat = '.json';
-    this.siteURL = '/export/org/sites' + this.resultFormat + '?fields=name,id,asset_count';
-    this.assetURL = '/export/org/assets' + this.resultFormat + '?fields=id,site_name,type,hw,names,os,os_version,os_product,os_vendor,last_seen,first_seen,hw_vendor,hw_product,hw_version,comments,addresses,updated_at,';
+    this.siteURL = '/export/org/sites' + this.resultFormat + '?fields=name,id,asset_count,organization_id';
+    this.assetURL = '/export/org/assets' + this.resultFormat + '?fields=id,site_name,type,hw,names,os,os_version,os_product,os_vendor,last_seen,first_seen,hw_vendor,hw_product,hw_version,comments,addresses,updated_at,organization_id,org_name';
     this.softwareURL = '/export/org/software' + this.resultFormat + '?fields=software_id,software_asset_id,software_vendor,software_product,software_version,software_created_at,software_updated_at,software_update,software_edition,software_language';
     this.orgSearchURL = '/account/orgs?search=' + this.orgName;
 
@@ -25,11 +26,24 @@ class runZeroApiHelper {
        this.orgSearchURL = '/export/org/sites.json?fields=organization_id'
     }
 
-    this.oauthClient = this.createClient(this.oauthUrl, null);
+    this.oauthClient = this.createoAuthClient(this.oauthUrl);
     this.tokenExpiresIn = false;
     this.tokenExpireTime = false;
     const tester = `${this.clientId} -  ${this.clientSecret} -  ${this.apiUrl} - ${this.orgName} -  ${this.CredOption} -  ${this.accessToken} - ${this.oauthUrl}`
-    //console.info(tester); // to remove
+    console.info(tester); // to remove
+  }
+
+  createoAuthClient(url) {
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+    const axiosConfig = {
+      baseURL: url,
+      timeout: 30000,
+      headers: headers,
+    };
+
+    return axios.create(axiosConfig);
   }
 
   createClient(url, bearerToken) {
@@ -67,6 +81,7 @@ class runZeroApiHelper {
   }
 
   async getAccessToken() {
+    console.log(`clientID: ${this.clientId} - client_secret: ${this.clientSecret} - URL: ${this.oauthUrl}`)
     const tokenVaild = this.checkTokenVaild();
     if (tokenVaild) {
       return this.accessToken;
@@ -86,6 +101,7 @@ class runZeroApiHelper {
         this.accessToken = response.access_token;
         this.tokenExpiresIn = response.expires_in;
         storeTokenExpiry();
+        console.log(this.accessToken); // to remove
         return this.accessToken;
       } else if (response) {
         console.error(`Error retrieving runZero access token. Status: ${lecResponse.status}\n%j`, response);
@@ -117,6 +133,25 @@ class runZeroApiHelper {
     }
   }
 
+  async getOrgID() {
+    if (this.orgID) {
+      return this.orgID
+    }
+    const result = await this.getRESTQuery('runZero Organisation', 'org');
+    if (result.error) {
+      console.info(`Unable to get Org ID: ${result.error}`);
+    } else {
+      if (!result || result.length === 0) {
+        console.error('No OrgID in runzero response, got:\n%j', result);
+      }
+      if (this.CredOption = 'export_token') {
+        return result[0].organization_id
+      }
+      this.orgID = result.id;
+      return this.orgID;
+    }
+  }
+
   async getRESTQuery(descr, query, filter) {
     let typeURL;
       switch (query) {
@@ -144,6 +179,10 @@ class runZeroApiHelper {
     if (filter) {
       typeURL = typeURL + filter;
     }
+   /*  if (this.CredOption == 'api_client') {
+      typeURL = typeURL + '&_oid=' + this.getOrgID()
+    } */
+    
     const accessToken = await this.getAccessToken();
     if (accessToken.error) {
       return accessToken;
@@ -176,20 +215,6 @@ class runZeroApiHelper {
         console.error(error);
       }
       return { error: `Unable to query ${descr}` };
-    }
-  }
-
-  async executeAPIMutation(descr, query, vars) {
-    const result = await this.getRESTQuery(descr, query);
-    if (result.error) {
-      return result;
-    } else {
-      const updateResult = result[Object.keys(result)[0]];
-      if (updateResult.errors && updateResult.errors.length > 0) {
-        return { error: updateResult.errors };
-      } else {
-        return updateResult;
-      }
     }
   }
 }

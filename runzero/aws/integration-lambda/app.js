@@ -47,7 +47,7 @@ async function updaterunzeroAuthStatus(options) {
     console.log('Unable to query instance. Too quick after app offering installation?');
     return config;
   }
-  console.info(config); // to remove
+  //console.info(config); // to remove
   instanceInput = null;
   if (config.connectionStatus === 'success') {
     instanceInput = await getInvalidCurrentAuthorizationInput(customerContext, config);
@@ -96,13 +96,13 @@ async function getPendingAuthorizationInput(customerContext, config) {
     if (error instanceof runzeroAuthorizationError) {
         // runzero credentials not OK, act as if we did not have them already: suspend instance and await auth
       return {
-        suspended: true,
+        suspended: false, // moded
         suspensionComment: `Unable to connect to runzero. Please check credentials.`,
       };
     } else if (error instanceof Js4meAuthorizationError) {
       // unable to access customer account
       return {
-          suspended: true,
+          suspended: false, // moded
           suspensionComment: `Unable to connect to customer account. Please rotate the token and unsuspend.`,
         };
     } else {
@@ -127,11 +127,11 @@ async function getInvalidCurrentAuthorizationInput(customerContext, config) {
   } catch (error) {
     if (error instanceof runzeroAuthorizationError) {
       // runZero credentials not OK, act as if we did not have them already: suspend instance and await auth
-      return {suspended: true};
+      return {suspended: false}; // moded
     } else if (error instanceof Js4meAuthorizationError) {
       // unable to access customer account
       return {
-        suspended: true,
+        suspended: false, // moded
         suspensionComment: `Unable to connect to customer account. Please rotate the token and unsuspend.`,
       }
     } else {

@@ -17,10 +17,11 @@ class runzeroIntegration {
     this.referenceHelper = new ReferenceHelper(customer4meHelper);
     this.resultHelper = new ResultHelper();
     this.SitesReferences = [];
-    this.SiteIds = [];
+    this.storedProducts = [];
     this.SoftwareReferences = [];
     this.storedConfigItems = [];
     this.defaultTeamId;
+    this.storedOrgs = [];
   }
 
   async validateCredentials() {
@@ -76,8 +77,8 @@ class runzeroIntegration {
     // create/update software CIs next
     const softwareResult = await this.processSoftware(generateLabels, assetTypes);
     result.uploadCounts['Software'] = softwareResult.uploadCount;
-      if (Object.keys(softwareResult.errors).length > 0) {
-        result.errors['Software'] = softwareResult.errors[0];
+      if (softwareResult.errors.length > 0) {
+        result.errors['Software'] = softwareResult.errors;
     }
     
     // create/update assets last
@@ -105,6 +106,7 @@ class runzeroIntegration {
     console.log('processing software');
     const itemsHandler = async items => await this.sendSoftwareto4me(items, generateLabels);
     const sendResults = await this.runzeroClient.getSoftware(itemsHandler, assetTypes);
+    //console.log(`Software Result: ${JSON.stringify(sendResults, null, 4)}`); // to remove
     console.log(`Upload count: ${sendResults.uploadCount}, error count: ${sendResults.errors[0] ? sendResults.errors[0].length : 0}`); 
     return sendResults;
   }
@@ -146,7 +148,7 @@ class runzeroIntegration {
       return result;
   }
 
-  async processOSs(assets) {
+  async addExtendedData(assets) {
     for (let asset of assets) {
       if (asset.os && asset.os_product && asset.os_vendor) {
         let sysID = `${asset.os} ${asset.os_version}`;
@@ -169,8 +171,17 @@ class runzeroIntegration {
                     }
                 ]
             }]
-        const sendOS = await this.uploadSWTo4me(OSConstruct);
+        await this.uploadSWTo4me(OSConstruct);
       }
+      /* if (asset.org_name && !this.storedOrgs.find(e => e.name == asset.org_name)) {
+        
+        const input = {
+        "name": asset.org_name,
+        "remarks": "Created by runZero, OrgID: " + asset.organization_id,
+        "runzeroID": asset.organization_id
+      };
+      await this.uploadOrgTo4me(input);
+      } */
     }
   }
 
@@ -191,13 +202,12 @@ class runzeroIntegration {
           //console.log(input); // to remove
           const mutationResult = await this.uploadSWTo4me(input);
 
-          if (mutationResult.errors) {
+          if (mutationResult.errors == 1) {
             errors.push(mutationResult.errors);
           } else if (mutationResult.errors) {
             errors.push(...this.mapErrors(mutationResult.errors));
-          } else {
-            result.mutationResult = mutationResult;
           }
+          result.uploadCount = mutationResult.uploadCount;
         } catch (e) {
           if (e instanceof Js4meAuthorizationError) {
             // no need to keep process going
@@ -221,16 +231,16 @@ class runzeroIntegration {
       let assetsToProcess = assets;
       if (assetsToProcess.length !== 0) {
         try {
-          const osAdds = await this.processOSs(assetsToProcess);
+          const extendedData = await this.addExtendedData(assetsToProcess);
           const referenceData = await this.referenceHelper.lookup4meReferences(assetsToProcess);
           const discoveryHelper = new DiscoveryMutationHelper(referenceData, generateLabels, this.SitesReferences, this.SoftwareReferences);
           const input = discoveryHelper.toDiscoveryUploadInput(assetsToProcess);
           //console.log(input.products); // to remove
           const mutationResult = await this.uploadTo4me(input);
-          console.log(JSON.stringify(mutationResult, null, 4)); // to remove
+          //console.log(JSON.stringify(mutationResult, null, 4)); // to remove
           for (let i of assetsToProcess) {
             await this.uploadRelationTo4me( this.SitesReferences,{
-              "label": i.names[0] + " (NEW)",
+              "label": i.names[0] + " (runzero)",
               "siteId": i.site_name
             });
           }
@@ -265,14 +275,6 @@ class runzeroIntegration {
 
   assetSeenCutOffDate() {
     return new Date(new TimeHelper().getMsSinceEpoch() - runzeroIntegration.LAST_SEEN_DAYS * 24 * 60 * 60 * 1000);
-  }
-
-  removeAssetsWithoutIP(assets) {
-    const assetsWithIP = assets.filter(asset => !!asset.assetBasicInfo.ipAddress);
-    if (assetsWithIP.length < assets.length) {
-      console.info(`Skipping ${assets.length - assetsWithIP.length} assets that have no IP address.`)
-    }
-    return assetsWithIP;
   }
 
   async downloadResults(mutationResultsToRetrieve) {
@@ -332,21 +334,25 @@ class runzeroIntegration {
     return errors.map(e => e.message || e);
   }
 
-  async CISearch(ci) {
-    result = { "existing": false, "id": 0 };
-    let ciReturn = (this.storedConfigItems.length > 0) ? this.storedConfigItems.find(e => e.name == ci).id : undefined;
+  async CISearch(ci, label) {
+    let result = { "existing": false, "id": 0 };
+    let ciReturn = (this.storedConfigItems.length > 0) ? this.storedConfigItems.find(e => e.name == ci) : false;
     if (!ciReturn) {
       //console.log(JSON.stringify(ci, null, 4)); // to remove
+      const accessToken = await this.customer4meHelper.getToken();
+      const fieldname = label ? 'label' : "name";
       ciReturn = await this.customer4meHelper.RestAPIGet('CI Search',
         accessToken,
-        `cis?name=${ci}&fields=id`,
+        `cis?${fieldname}=${ci}&fields=id`,
       );
-      if (ciReturn.data.length > 0) {
-        result.id = ciReturn.data[0].nodeID;
+      if (ciReturn.length > 0) {
+        result.id = ciReturn[0].nodeID;
+        result.existing = true;
         this.storedConfigItems.push({ "name": ci, "id": result.id });
       }
     } else {
       result.existing = true;
+      result.id = ciReturn.id
     }
     return result;
   }
@@ -370,15 +376,16 @@ class runzeroIntegration {
   async uploadSWTo4me(input) {
     //console.log(JSON.stringify(input, null, 4)); // to remove
     const errors = [];
-    const results = { uploadCount: 0, errors: errors };
+    let success = 0;
+    //let results = { uploadCount: success, errors: errors };
     const catQuery = `query {
       productCategories(first: 100,filter: {ruleSet: {values: [software]},
     references: ["${input[0].sourceID}"]}){ nodes { id } }
     }`;
     const accessToken = await this.customer4meHelper.getToken();
     const categories = await this.customer4meHelper.executeGraphQLMutation('category Query',
-                                                                      accessToken,
-                                                                      catQuery);
+      accessToken,
+      catQuery);
     const catID = categories.nodes[0].id;
     const catName = input[0].sourceID;
     if (!this.defaultTeamId) {
@@ -386,13 +393,34 @@ class runzeroIntegration {
         accessToken,
         'teams?name=Service Desk',
       );
-      this.defaultTeamId = teams.data[0].id;
+      this.defaultTeamId = teams[0].id;
     }
-    const products = await this.customer4meHelper.RestAPIGet('Get Products',
-                                                          accessToken,
-                                                          `products?category=${input[0].sourceID}&per_page=100`,
-    );
-    //console.log(JSON.stringify(products.data, null, 4)); // to remove
+    //console.log(this.defaultTeamId); // to remove
+    //console.log(`First: ${input[0].sourceID}`); // to remove
+    if (this.storedProducts.length == 0) {
+       const osproducts = await this.customer4meHelper.RestAPIGet('Get OS Products',
+                                                           accessToken,
+                                                           `products?category=software/operating_system_software&per_page=100`,
+      );
+      //console.log(JSON.stringify(osproducts, null, 4)); // to remove
+      for (const e of osproducts) {
+         this.storedProducts.push(e);
+      }
+      const products = await this.customer4meHelper.RestAPIGet('Get Other Products',
+                                                           accessToken,
+                                                           `products?category=software/other_type_of_software&per_page=100`,
+      );
+      //console.log(JSON.stringify(products, null, 4)); // to remove
+      for (const e of products) {
+         this.storedProducts.push(e);
+      }
+     }
+    //console.log(JSON.stringify(this.storedProducts, null, 4)); // to remove
+    /* const products = await this.customer4meHelper.RestAPIGet('Get Products',
+      accessToken,
+      `products?category=${input[0].sourceID}&per_page=100`,
+    ); */
+    //console.log(products); // to remove
     for (let i of input) {
       //console.log(JSON.stringify(i, null, 4)); // to remove
       //console.log(`Prod: ${products.data.find(e => e.name === i.name).nodeID}`); // to remove
@@ -401,7 +429,9 @@ class runzeroIntegration {
         "sourceID": "runZero", "product_category_id": catID, "support_team": this.defaultTeamId
       };
       let productid;
-      if (products.data.filter(e => e.name === i.name.trim()).length == 0) {
+      //console.log(i.name.trim()); // to remove
+      //console.log(this.storedProducts[0].name); // to remove
+      if (this.storedProducts.filter(e => e.name === i.name.trim()).length == 0) {
         const result = await this.customer4meHelper.RestAPIProductsPost('create product',
           accessToken,
           'products',
@@ -411,9 +441,10 @@ class runzeroIntegration {
           errors.push(`Unable to upload Software Products to 4me - ${result.error}`);
         } else {
           productid = result.data.nodeID;
+          this.storedProducts.push(result.data);
         }
       } else {
-        productid = products.data.find(e => e.name === i.name).nodeID
+        productid = this.storedProducts.find(e => e.name === i.name).nodeID
       }  
       for (let ci of i.configurationItems) {
         ci.productId = productid;
@@ -421,7 +452,9 @@ class runzeroIntegration {
         let mutationType = "ConfigurationItemCreateInput";
         let mutationAction = "configurationItemCreate";
 
-        const ciReturn = await this.CISearch(ci.name);
+        const ciReturn = await this.CISearch(ci.name, false);
+        //console.log(ciReturn.existing); //to remove
+        //console.log(ciReturn.id); //to remove
         if (ciReturn.existing) {
           ci.id = ciReturn.id;
           delete ci.name;
@@ -446,11 +479,12 @@ class runzeroIntegration {
           console.error('Error uploading Software:\n%j', ciResult);
           errors.push(`Unable to upload Software to 4me - ${ciResult.error}`);
         } else {
-          results.uploadCount++;
+          success++;
         }
       }
     }
-    return results;
+    //console.log(success); // to remove
+    return { uploadCount: success, errors: errors };
   }
 
   async uploadSiteTo4me(input, discoType) {
@@ -476,26 +510,56 @@ class runzeroIntegration {
     }
   }
 
-  async uploadRelationTo4me(siterefs, input) {
+  async uploadOrgTo4me(input) {
     const accessToken = await this.customer4meHelper.getToken();
-    const ciReturn = await this.CISearch(input.label);
+    const existingCheck = await this.customer4meHelper.executeGraphQLMutation('Find Organisation',
+      accessToken,
+      `query {
+      organizations(first:1, filter: {name: {values: ["${input.name}"]}}) {nodes { name id }}
+      }`);
+    if (existingCheck.nodes.length > 0) {
+      this.storedOrgs.push({ "name": input.name, "id": existingCheck.nodes[0].id, "runZeroID": input.runzeroID })
+    } else {
+      const upload = {"name": input.name, "remarks": input.remarks}
+      const query = `
+      mutation($input: OrganizationCreateInput!) {
+        organizationCreate(input: $input) {
+          errors { path message }
+        }
+      }`;
+      const result = await this.customer4meHelper.executeGraphQLMutation('discovered sites',
+        accessToken,
+        query,
+        { input: upload });
+      if (result.error) {
+        console.error('Error uploading Org:\n%j', result);
+        throw new LoggedError('Unable to upload Orgs to 4me');
+      }
+    }
+  }
+
+  async uploadRelationTo4me(siterefs, input) {
+    const ciReturn = await this.CISearch(input.label, true);
+    //console.log(ciReturn.existing); //to remove
+    //console.log(ciReturn.id); //to remove
     if (ciReturn.existing) {
-      input.id= ciReturn.id;
+      input.id = ciReturn.id;
       delete input.label;
-      input.SiteId = siterefs.find(e => e.name == input.siteId);
+      input.siteId = siterefs.find(e => e.name == input.siteId).id;
       const query = `
         mutation($input: ConfigurationItemUpdateInput!) {
           configurationItemUpdate(input: $input) {
             errors { path message }
           }
         }`;
-      const result = await this.customer4meHelper.executeGraphQLMutation('discovered sites',
+      const accessToken = await this.customer4meHelper.getToken();
+      const result = await this.customer4meHelper.executeGraphQLMutation('CI Relations',
         accessToken,
         query,
         { input: input });
       if (result.error) {
-        console.error('Error uploading Site Links:\n%j', result);
-        throw new LoggedError('Unable to upload Ci to Site Links to 4me');
+        console.error('Error uploading CI Relations:\n%j', result);
+        throw new LoggedError('Unable to uploadCI Relations to 4me');
       }
     }
   }

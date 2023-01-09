@@ -79,7 +79,8 @@ class runzeroClient {
   }
 
   async getAssets(itemsHandler, assetTypes) {
-    let itemResults = [];
+    let results = [];
+    const chunkSize = 100;
     if (assetTypes) {
       let filter = "&search=";
       assetTypes.forEach(element => {
@@ -93,10 +94,16 @@ class runzeroClient {
     if (result.error) {
       console.error(`Error Getting assets: ${result.error}`)
     } else {
-      itemResults = await itemsHandler(result);
+      //console.log(`Assets: ${JSON.stringify(result, null, 4)}`); // to remove
+      for (let i = 0; i < result.length; i += chunkSize) {
+        const chunk = result.slice(i, i + chunkSize);
+        //console.log(`Assets: ${JSON.stringify(chunk, null, 4)}`); // to remove
+        const itemResults = await itemsHandler(chunk);
+        results = [...results, ...itemResults];
+      }
+      //results = await itemsHandler(result);
     }
-
-    return itemResults;
+    return results;
   }
 
    async getSoftware(itemsHandler, assetTypes) {
