@@ -2,11 +2,15 @@
   width: 250px;
 }
 
+#config #export_secret,
 #config #client_id,
 #config #client_secret,
-#config #org_name,
-#config #runzero_url {
+#config #org_name {
   width: 500px;
+}
+
+#config #runzero_url {
+  width: 350px;
 }
 
 #config input.txt {

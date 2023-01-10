@@ -21,23 +21,16 @@ class runzeroClient {
     return (await this.getSites()).find(s => s.id === id).name;
   }
 
-  async getOrgID() {
-    const result = await this.apiHelper.getRESTQuery('runZero Organisation', 'org');
-    if (result.error) {
-      console.info(`Unable to get Org ID: ${result.error}`);
-      throw new runzeroAPIError(result.error);
-    } else {
-      if (!result || result.length === 0) {
-        console.error('No OrgID in runzero response, got:\n%j', result);
-        throw new runzeroAuthorizationError('No OrgID returned in response');
-      }
-      if (this.CredOption = 'export_token') {
-        return result[0].organization_id
-      }
-      return result.id
+  async setOrgID() {
+    const orgSet = await this.apiHelper.getOrgID();
+    if (orgSet.error) {
+      throw new runzeroAPIError(orgSet.error);
+    } else if (orgSet.authError) {
+      throw new runzeroAuthorizationError(orgSet.authError);
     }
-
+    return orgSet;
   }
+
   async getSites(siteFilter, siteNames, sitesAssetsOnly) {
     let sites = [];
     const result = await this.apiHelper.getRESTQuery('runzero sites', 'site');

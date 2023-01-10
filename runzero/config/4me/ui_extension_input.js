@@ -126,6 +126,7 @@ const multiText = function () {
   };
 };
 
+
 ITRP.hooks.register('after-prefill', function () {
 
   multiText().init('site_list', { singularName: 'site', required: true, max: 50 });
@@ -143,24 +144,32 @@ ITRP.hooks.register('after-prefill', function () {
   }).trigger('change');
 
   $extension.find('last_synced_section').addClass('hide');
-  const $connection_status = $extension.find('#connection_status');
-  const connection_status = $connection_status.val();
 
   $('input[type="radio"]').on('click', function (optionSelected) {
-    $extension.find('.token-selected').toggleClass('hide', optionSelected.currentTarget.value !== 'export_token');
-    $extension.find('.client-selected').toggleClass('hide', optionSelected.currentTarget.value !== 'api_client');
+  $extension.find('.token-selected').toggleClass('hide', optionSelected.currentTarget.value !== 'export_token');
+  $extension.find('.client-selected').toggleClass('hide', optionSelected.currentTarget.value !== 'api_client');
   }).trigger('click');
+
+  const $connection_status = $extension.find('#connection_status');
+  const $selectOption = $extension.find('#select_option');
+  const $export_secret = $extension.find('#export_secret');
+  const $client_id = $extension.find('#client_id');
+  const $client_secret = $extension.find('#client_secret');
+  const $orgName = $extension.find('#org_name');
+  const $url = $extension.find('#runzero_url');
+
+  if ($client_secret.val()) {
+    $('.selection :radio[value=api_client]').prop("checked", true).trigger('click');
+    $export_secret.val("");
+  }else if ($export_secret.val()) {
+    $('.selection :radio[value=export_token]').prop("checked", true).trigger('click');
+    $client_id.val("");
+    $client_secret.val("");
+    $orgName.val("");
+  }
   
-  if (connection_status === 'pending_client_credentials') {
-
+  if ($connection_status.val() === 'pending_client_credentials') {
     $extension.find('.step-client-credentials').removeClass('hide');
-    const $url = $extension.find('#runzero_url');
-    const $client_id = $extension.find('#client_id');
-    const $orgName = $extension.find('#org_name');
-    const $export_secret = $extension.find('#export_secret');
-    const $client_secret = $extension.find('#client_secret');
-    const $selectOption = $extension.find('#select_option');
-
     const nextStep = function () {
       var step = 'pending_client_credentials';
       if ($selectOption.val() == 'export_token' && !String.isBlank($export_secret.val())) {
@@ -170,34 +179,20 @@ ITRP.hooks.register('after-prefill', function () {
       }
       $connection_status.val(step);
     };
-  
     $client_id.on('change', nextStep);
     $client_secret.on('change', nextStep);
     $url.on('change', nextStep);
     $orgName.on('change', nextStep);
   }
 
-  if (connection_status === 'pending_authorization') {
+  if ($connection_status.val() === 'pending_authorization') {
     $extension.find('.step-authorize').removeClass('hide');
     if ($extension.find('#export_secret').val()) {
       $extension.find('.token-selected').toggleClass('hide', false);
       $('.selection :radio[value=export_token]').prop("checked", true).trigger('click');
     } else {
       $extension.find('.client-selected').toggleClass('hide', false);
-      
-        $('.selection :radio[value=api_client]').prop("checked", true).trigger('click');
-    }
-  }
-
-  if (connection_status === 'success') {
-    if ($extension.find('#export_secret').val()) {
-      $extension.find('.token-selected').toggleClass('hide', false);
-      $('.selection :radio[value=export_token]').prop("checked", true).trigger('click');
-    } else {
-      $extension.find('.client-selected').toggleClass('hide', false);
-      $extension.find('#export_secret').remove();
-      $connection_status.val('pending_authorization');
       $('.selection :radio[value=api_client]').prop("checked", true).trigger('click');
     }
-  } 
+  }
 });

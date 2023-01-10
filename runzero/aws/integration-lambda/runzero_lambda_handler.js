@@ -228,9 +228,10 @@ class runzeroLambdaHandler {
   }
 
   async suspendUnauthorizedInstance(lambda4meContext, config, error) {
+    //moded
     const suspend = await this.updateInstanceConfig(lambda4meContext, {
       id: config.instanceId,
-      suspended: true,
+      suspended: false, 
       suspensionComment: `Unable to connect to runzero: ${error.message}`,
     });
     if (suspend.error) {
@@ -241,9 +242,10 @@ class runzeroLambdaHandler {
   }
 
   async suspendUnauthorized4meInstance(lambda4meContext, config, error) {
+    //moded
     const suspend = await this.updateInstanceConfig(lambda4meContext, {
       id: config.instanceId,
-      suspended: true,
+      suspended: false,  
       suspensionComment: `Unable to connect to customer account. Please rotate the token and unsuspend.`,
     });
     if (suspend.error) {
@@ -261,7 +263,9 @@ class runzeroLambdaHandler {
       clientSecret = customerContext.secrets.secrets.client_secret;
     }
     const clientID = config.clientID;
+    console.log(`updateRefreshToken: ${clientID}, ${clientSecret}, ${config.rzURL}, ${config.orgName}, ${config.CredOption}`); // to remove
     const refreshToken = await this.getRefreshToken(clientID, clientSecret, config.rzURL, config.orgName, config.CredOption);
+    console.log(`updateRefreshToken: ${refreshToken}`); // to remove
     if (!refreshToken) {
       return this.badRequest('Unauthorized');
     }
@@ -279,7 +283,7 @@ class runzeroLambdaHandler {
     const config = await this.appInstanceConfig(lambda4meContext);
 
     const customerContext = lambda4meContext.customerContext;
-    const refreshToken = await handler.updateRefreshToken(customerContext, config);
+    const refreshToken = await this.updateRefreshToken(customerContext, config);
 
     const instanceInput = {
       id: config.instanceId,

@@ -47,15 +47,14 @@ async function updaterunzeroAuthStatus(options) {
     console.log('Unable to query instance. Too quick after app offering installation?');
     return config;
   }
-  //console.info(config); // to remove
-  instanceInput = null;
-  if (config.connectionStatus === 'success') {
+  console.info(config); // to remove
+  /* if (config.connectionStatus === 'success') {
     instanceInput = await getInvalidCurrentAuthorizationInput(customerContext, config);
     if (!instanceInput.suspended) {
       return config;
     }
-  }
-  instanceInput = await getPendingAuthorizationInput(customerContext, config);
+  } */
+  let instanceInput = await verifyAuthorizationInput(customerContext, config);
   if (instanceInput.error) {
     return instanceInput;
   }
@@ -65,16 +64,18 @@ async function updaterunzeroAuthStatus(options) {
     console.error('Unable to set app instance custom fields %s:\n%j', instanceInput, updateCustomFields.error);
     return {error: 'Unable to set app instance custom fields'};
   }
-  if (instanceInput.customFields[0].value == 'success') {
+  /* if (instanceInput.customFields[0].value == 'success') {
     const handler = new runzeroLambdaHandler(options, process.env.REFRESH_QUEUE_URL);
     const refreshToken = await handler.updateRefreshToken(customerContext, config);
-    const results = await handler.sendRefreshMessage(customerAccount);
+    if (refreshToken) {
+      await handler.sendRefreshMessage(customerAccount);
+    } 
     //console.log(results) // to remove
-  } 
+  }*/
   return updateCustomFields;
 }
 
-async function getPendingAuthorizationInput(customerContext, config) {
+async function verifyAuthorizationInput(customerContext, config) {
   try {
     let clientSecret = false;
     if (config.CredOption == 'export_token') {
@@ -84,25 +85,40 @@ async function getPendingAuthorizationInput(customerContext, config) {
     }
     const integration = new runzeroIntegration(config.clientID, clientSecret, config.rzURL, config.orgName, config.CredOption, customerContext.js4meHelper);
     const valid = await integration.validateCredentials();
-    return { suspended: !valid,
-            customFields: [
-              {
-                id: 'connection_status',
-                value: 'success',
-              }
-            ]
-          };
+   /*  if (!valid) {
+      return {
+        error: {
+          suspended: true,
+          suspensionComment: `Unable to connect to runzero. Please check credentials.`,
+          customFields: [
+            {
+              id: 'connection_status',
+              value: 'pending_authorization',
+            }
+          ]
+        }
+      };
+    } */
+    return {
+        suspended: false,
+        customFields: [
+          {
+            id: 'connection_status',
+            value: 'success',
+          }
+        ]
+      };
   } catch (error) {
     if (error instanceof runzeroAuthorizationError) {
         // runzero credentials not OK, act as if we did not have them already: suspend instance and await auth
       return {
-        suspended: false, // moded
+        suspended: true,
         suspensionComment: `Unable to connect to runzero. Please check credentials.`,
       };
     } else if (error instanceof Js4meAuthorizationError) {
       // unable to access customer account
       return {
-          suspended: false, // moded
+          suspended: true,
           suspensionComment: `Unable to connect to customer account. Please rotate the token and unsuspend.`,
         };
     } else {
@@ -113,7 +129,7 @@ async function getPendingAuthorizationInput(customerContext, config) {
   }
 }
 
-async function getInvalidCurrentAuthorizationInput(customerContext, config) {
+/* async function getInvalidCurrentAuthorizationInput(customerContext, config) {
  try {
     let clientSecret = false;
     if (config.CredOption == 'export_token') {
@@ -123,15 +139,15 @@ async function getInvalidCurrentAuthorizationInput(customerContext, config) {
     }
     const integration = new runzeroIntegration(config.clientID, clientSecret, config.rzURL, config.orgName, config.CredOption, customerContext.js4meHelper);
     const valid = await integration.validateCredentials();
-    return {suspended: !valid};
+    return {suspended: !valid}; 
   } catch (error) {
     if (error instanceof runzeroAuthorizationError) {
       // runZero credentials not OK, act as if we did not have them already: suspend instance and await auth
-      return {suspended: false}; // moded
+      return {suspended: true}; 
     } else if (error instanceof Js4meAuthorizationError) {
       // unable to access customer account
       return {
-        suspended: false, // moded
+        suspended: true, 
         suspensionComment: `Unable to connect to customer account. Please rotate the token and unsuspend.`,
       }
     } else {
@@ -140,7 +156,7 @@ async function getInvalidCurrentAuthorizationInput(customerContext, config) {
       return {suspended: false};
     }
   }
-}
+} */
 
 async function handleInstallationChanged(handler, data, options) {
 

@@ -25,7 +25,7 @@ class runzeroIntegration {
   }
 
   async validateCredentials() {
-    const orgId = await this.runzeroClient.getOrgID();
+    const orgId = await this.runzeroClient.setOrgID();
     console.info(`Validated runzero access. Can access OrgID: ${orgId}`);
     const accessToken = await this.customer4meHelper.getToken();
     console.info('Validated 4me customer account access.');
@@ -34,6 +34,7 @@ class runzeroIntegration {
 
   async processAll(configAssetTypes, generateLabels, siteFilter, siteNames, sitesAssetsOnly) {
 
+    await this.validateCredentials();
     // Create/update sites first
     let siteList;
     try {
